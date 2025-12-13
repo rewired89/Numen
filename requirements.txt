@@ -25,6 +25,17 @@ tqdm>=4.65.0
 python-dotenv>=1.0.0
 loguru>=0.7.0
 
+# UI & Visualization
+gradio>=4.0.0
+pillow>=10.0.0
+matplotlib>=3.7.0
+
+# OCR & Image Processing
+pytesseract>=0.3.10
+pdf2image>=1.16.0
+opencv-python>=4.8.0
+pix2tex>=0.1.0
+
 # Development
 pytest>=7.4.0
 black>=23.0.0
