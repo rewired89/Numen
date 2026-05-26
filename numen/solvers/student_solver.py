@@ -86,8 +86,16 @@ class StudentSolver:
         # Solve based on type
         if problem_type == "limit":
             return self._solve_limit(problem)
+        elif problem_type == "definite_integral":
+            return self._solve_definite_integral(problem)
         elif problem_type == "system":
             return self._solve_system(problem)
+        elif problem_type == "ode":
+            return self._solve_ode(problem)
+        elif problem_type == "matrix":
+            return self._solve_matrix(problem)
+        elif problem_type == "statistics":
+            return self._solve_statistics(problem)
         elif problem_type == "equation":
             return self._solve_equation(problem)
         elif problem_type == "derivative":
@@ -101,7 +109,6 @@ class StudentSolver:
         elif problem_type == "factor":
             return self._solve_factor(problem)
         else:
-            # Try as equation by default
             return self._solve_equation(problem)
 
     def _detect_problem_type(self, problem: str) -> str:
@@ -110,6 +117,28 @@ class StudentSolver:
 
         if "limit" in problem_lower and ("->" in problem or "→" in problem or "as x" in problem_lower):
             return "limit"
+        elif ("integral" in problem_lower or "integrate" in problem_lower) and (
+            " from " in problem_lower and " to " in problem_lower
+        ):
+            return "definite_integral"
+        elif any(k in problem_lower for k in ("y''", "y'", "dy/dx", "d2y/dx2")) or (
+            problem_lower.startswith("ode ")
+        ):
+            return "ode"
+        elif ("[[" in problem or "matrix" in problem_lower) and any(
+            k in problem_lower for k in (
+                "inverse", "determinant", "det", "eigenvalue", "eigenvector",
+                "transpose", "rank", "rref", "multiply", "trace", "norm",
+            )
+        ):
+            return "matrix"
+        elif "[[" in problem and problem_lower.startswith(("[[", "matrix")):
+            return "matrix"
+        elif any(k in problem_lower for k in (
+            "mean", "median", "mode", "std", "standard deviation",
+            "variance", "statistics", "average", "range of data",
+        )):
+            return "statistics"
         elif ("solve" in problem_lower or "=" in problem) and (
             " and " in problem_lower or "," in problem
         ) and any(v in problem_lower for v in ["y", "z"]):
@@ -639,6 +668,453 @@ class StudentSolver:
                        "💡 Format: 'solve 2x + y = 5 and x - y = 1'"],
                 explanation=str(e),
                 problem_type="system",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Definite Integrals
+    # ------------------------------------------------------------------
+
+    def _solve_definite_integral(self, problem: str) -> Solution:
+        """Compute a definite integral with bounds."""
+        try:
+            x = symbols('x')
+            steps = []
+            steps.append(f"📝 **Original problem:** {problem}")
+
+            # Pattern: "integral of f(x) from a to b"
+            pattern = re.compile(
+                r'(?:integral\s+of\s+|integrate\s+)(.+?)\s+from\s+(.+?)\s+to\s+(.+)',
+                re.IGNORECASE,
+            )
+            match = pattern.search(problem)
+            if not match:
+                raise ValueError("Use format: 'integral of f(x) from a to b'")
+
+            func_text = match.group(1).strip()
+            lower_text = match.group(2).strip()
+            upper_text = match.group(3).strip()
+
+            expr = self._safe_parse(func_text)
+            lower = self._safe_parse(lower_text)
+            upper = self._safe_parse(upper_text)
+
+            steps.append(f"🔧 **Integrand:** {expr}")
+            steps.append(f"🔧 **Bounds:** [{lower}, {upper}]")
+            steps.append(f"🔍 **Computing definite integral...**")
+
+            # Symbolic definite integral
+            result = integrate(expr, (x, lower, upper))
+            simplified = simplify(result)
+
+            steps.append(f"   ∫ {expr} dx from {lower} to {upper}")
+            steps.append(f"   = [F(x)] from {lower} to {upper}  where F is the antiderivative")
+            steps.append(f"\n✅ **Final Answer:** {simplified}")
+
+            # Numerical value if exact is complex
+            try:
+                numerical = float(simplified)
+                steps.append(f"📐 **Numerical value:** ≈ {numerical:.6f}")
+                answer = f"{simplified}  ≈  {numerical:.4f}"
+            except (TypeError, ValueError):
+                answer = str(simplified)
+
+            explanation = (
+                f"The definite integral of {expr} from {lower} to {upper} equals {simplified}. "
+                "This represents the net signed area under the curve between the two bounds."
+            )
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="definite_integral",
+                difficulty="medium",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Format: 'integral of x^2 from 0 to 3'"],
+                explanation=str(e),
+                problem_type="definite_integral",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Ordinary Differential Equations
+    # ------------------------------------------------------------------
+
+    def _solve_ode(self, problem: str) -> Solution:
+        """Solve an ordinary differential equation."""
+        try:
+            from sympy import Function, dsolve, Eq as SpEq
+
+            x = symbols('x')
+            y = Function('y')
+            steps = []
+            steps.append(f"📝 **Original ODE:** {problem}")
+
+            # Strip leading keywords
+            eq_str = re.sub(r'^\s*(?:ode|solve|differential equation)\s*', '', problem, flags=re.IGNORECASE).strip()
+
+            steps.append(f"🔧 **Equation to solve:** {eq_str}")
+
+            # Replace prime notation: y'' → D2, y' → D1, then y → y0
+            eq_str = eq_str.replace("y''", "D2ODE").replace("y'", "D1ODE")
+            eq_str = re.sub(r"\by\b", "y0ODE", eq_str)
+
+            # Replace dy/dx with D1ODE
+            eq_str = re.sub(r"d2y/dx2|d\^2y/dx\^2", "D2ODE", eq_str, flags=re.IGNORECASE)
+            eq_str = re.sub(r"dy/dx", "D1ODE", eq_str, flags=re.IGNORECASE)
+
+            ode_local = {
+                'D2ODE': y(x).diff(x, 2),
+                'D1ODE': y(x).diff(x),
+                'y0ODE': y(x),
+                **self.local_dict,
+            }
+
+            if "=" in eq_str:
+                lhs_s, rhs_s = eq_str.split("=", 1)
+                lhs = parse_expr(lhs_s.replace('^', '**'), local_dict=ode_local,
+                                 transformations=self.transformations)
+                rhs = parse_expr(rhs_s.replace('^', '**'), local_dict=ode_local,
+                                 transformations=self.transformations)
+                ode_eq = SpEq(lhs, rhs)
+            else:
+                expr = parse_expr(eq_str.replace('^', '**'), local_dict=ode_local,
+                                  transformations=self.transformations)
+                ode_eq = SpEq(expr, 0)
+
+            steps.append(f"🔍 **Solving ODE symbolically...**")
+            steps.append(f"   Using SymPy dsolve (handles linear, separable, exact ODEs)")
+
+            solution = dsolve(ode_eq, y(x))
+
+            steps.append(f"\n✅ **General Solution:** {solution}")
+            steps.append(f"   C1, C2, ... are arbitrary constants (determined by initial conditions)")
+
+            answer = str(solution)
+            explanation = (
+                f"The general solution of the ODE is {solution}. "
+                "C1 (and C2 for 2nd-order) are constants of integration — "
+                "provide initial conditions to find specific values."
+            )
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="ode",
+                difficulty="hard",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not solve ODE: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   First-order:  y' + 2*y = 0",
+                       "   Second-order: y'' - 3*y' + 2*y = 0",
+                       "   Prefix with 'ode' if needed: ode y' = x*y"],
+                explanation=str(e),
+                problem_type="ode",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Matrix Operations
+    # ------------------------------------------------------------------
+
+    def _parse_matrix(self, text: str) -> sp.Matrix:
+        """Parse [[1,2],[3,4]] notation into a SymPy Matrix."""
+        import ast
+        # Find the first [[...]] block
+        match = re.search(r'\[\[.+?\]\]', text, re.DOTALL)
+        if not match:
+            raise ValueError("No matrix found. Use format: [[1,2],[3,4]]")
+        data = ast.literal_eval(match.group(0))
+        return sp.Matrix(data)
+
+    def _solve_matrix(self, problem: str) -> Solution:
+        """Perform matrix operations."""
+        try:
+            steps = []
+            steps.append(f"📝 **Original problem:** {problem}")
+            problem_lower = problem.lower()
+
+            # Detect if there are two matrices (for multiply)
+            matrices_raw = re.findall(r'\[\[.+?\]\]', problem, re.DOTALL)
+            A = self._parse_matrix(problem)
+            steps.append(f"🔧 **Matrix A:**\n{A}")
+
+            # --- Determine operation ---
+            if any(k in problem_lower for k in ("inverse", "inv")):
+                steps.append("🔍 **Computing matrix inverse...**")
+                if A.det() == 0:
+                    answer = "Matrix is singular (determinant = 0) — no inverse exists."
+                    steps.append("❌ " + answer)
+                    return Solution(answer=answer, steps=steps,
+                                    explanation=answer, problem_type="matrix",
+                                    difficulty="medium", confidence=1.0)
+                result = A.inv()
+                steps.append(f"   det(A) = {A.det()} ≠ 0 → inverse exists")
+                steps.append(f"\n✅ **A⁻¹ =**\n{result}")
+                answer = str(result)
+                explanation = f"The inverse of the matrix is:\n{result}"
+
+            elif any(k in problem_lower for k in ("determinant", "det")):
+                steps.append("🔍 **Computing determinant...**")
+                result = A.det()
+                steps.append(f"   Expanding along first row...")
+                steps.append(f"\n✅ **det(A) = {result}**")
+                answer = f"det = {result}"
+                explanation = f"The determinant of the matrix is {result}."
+
+            elif any(k in problem_lower for k in ("eigenvalue", "eigenvalues")):
+                steps.append("🔍 **Computing eigenvalues...**")
+                eigenvals = A.eigenvals()
+                steps.append(f"   Solving characteristic polynomial det(A - λI) = 0")
+                ev_str = ", ".join(f"λ = {v} (multiplicity {m})" for v, m in eigenvals.items())
+                steps.append(f"\n✅ **Eigenvalues:** {ev_str}")
+                answer = f"Eigenvalues: {ev_str}"
+                explanation = (
+                    f"The eigenvalues of the matrix are: {ev_str}. "
+                    "These are the values λ where (A - λI)v = 0 has non-trivial solutions."
+                )
+
+            elif any(k in problem_lower for k in ("eigenvector", "eigenvectors")):
+                steps.append("🔍 **Computing eigenvectors...**")
+                eigenvects = A.eigenvects()
+                lines = []
+                for eigenval, mult, vects in eigenvects:
+                    for v in vects:
+                        lines.append(f"  λ = {eigenval}: v = {v.T}")
+                steps.append(f"\n✅ **Eigenvectors:**\n" + "\n".join(lines))
+                answer = "Eigenvectors:\n" + "\n".join(lines)
+                explanation = "Eigenvectors are non-zero vectors v satisfying A·v = λ·v."
+
+            elif "transpose" in problem_lower:
+                steps.append("🔍 **Computing transpose...**")
+                result = A.T
+                steps.append(f"\n✅ **Aᵀ =**\n{result}")
+                answer = str(result)
+                explanation = f"The transpose swaps rows and columns: result is\n{result}"
+
+            elif "rank" in problem_lower:
+                steps.append("🔍 **Computing rank...**")
+                result = A.rank()
+                steps.append(f"   Row reducing matrix...")
+                steps.append(f"\n✅ **rank(A) = {result}**")
+                answer = f"rank = {result}"
+                explanation = f"The rank of the matrix is {result} (number of linearly independent rows/columns)."
+
+            elif "rref" in problem_lower:
+                steps.append("🔍 **Row Reducing (RREF)...**")
+                rref_matrix, pivot_cols = A.rref()
+                steps.append(f"   Applying elementary row operations...")
+                steps.append(f"   Pivot columns: {pivot_cols}")
+                steps.append(f"\n✅ **RREF =**\n{rref_matrix}")
+                answer = str(rref_matrix)
+                explanation = f"The Row Reduced Echelon Form is:\n{rref_matrix}\nPivot columns: {pivot_cols}"
+
+            elif "trace" in problem_lower:
+                steps.append("🔍 **Computing trace...**")
+                result = A.trace()
+                steps.append(f"\n✅ **trace(A) = {result}** (sum of diagonal elements)")
+                answer = f"trace = {result}"
+                explanation = f"The trace is the sum of the diagonal elements: {result}."
+
+            elif any(k in problem_lower for k in ("multiply", "product")) and len(matrices_raw) >= 2:
+                B = sp.Matrix(eval(matrices_raw[1]))  # second matrix
+                steps.append(f"🔧 **Matrix B:**\n{B}")
+                steps.append("🔍 **Multiplying A × B...**")
+                result = A * B
+                steps.append(f"\n✅ **A × B =**\n{result}")
+                answer = str(result)
+                explanation = f"The product A × B is:\n{result}"
+
+            else:
+                # Default: show properties
+                steps.append("🔍 **Computing matrix properties...**")
+                det = A.det()
+                rnk = A.rank()
+                steps.append(f"   Shape: {A.shape[0]} × {A.shape[1]}")
+                steps.append(f"   Determinant: {det}")
+                steps.append(f"   Rank: {rnk}")
+                if A.shape[0] == A.shape[1]:
+                    steps.append(f"   Trace: {A.trace()}")
+                    steps.append(f"   Invertible: {'Yes' if det != 0 else 'No (singular)'}")
+                answer = f"Shape: {A.shape}, det={det}, rank={rnk}"
+                explanation = f"Matrix properties computed. Specify 'inverse', 'determinant', 'eigenvalues', 'rref', 'rank', or 'transpose'."
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="matrix",
+                difficulty="medium",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   inverse of [[1,2],[3,4]]",
+                       "   determinant of [[1,2],[3,4]]",
+                       "   eigenvalues of [[2,1],[1,3]]",
+                       "   rref [[1,2,3],[4,5,6]]",
+                       "   rank of [[1,2,3],[4,5,6],[7,8,9]]"],
+                explanation=str(e),
+                problem_type="matrix",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Statistics
+    # ------------------------------------------------------------------
+
+    def _solve_statistics(self, problem: str) -> Solution:
+        """Compute descriptive statistics on a dataset."""
+        try:
+            import ast
+            import math
+
+            steps = []
+            steps.append(f"📝 **Original problem:** {problem}")
+            problem_lower = problem.lower()
+
+            # Extract list of numbers
+            match = re.search(r'\[([^\]]+)\]', problem)
+            if not match:
+                # Try comma-separated numbers after keyword
+                match2 = re.search(r'(?:of|:)\s*([\d\s,.\-]+)', problem)
+                if match2:
+                    data = [float(n.strip()) for n in match2.group(1).split(',') if n.strip()]
+                else:
+                    raise ValueError("Could not find data. Use format: mean of [1, 2, 3, 4, 5]")
+            else:
+                data = [float(n.strip()) for n in match.group(1).split(',') if n.strip()]
+
+            if len(data) == 0:
+                raise ValueError("Empty dataset.")
+
+            n = len(data)
+            total = sum(data)
+            mean_val = total / n
+            sorted_data = sorted(data)
+
+            # Median
+            if n % 2 == 0:
+                median_val = (sorted_data[n // 2 - 1] + sorted_data[n // 2]) / 2
+            else:
+                median_val = sorted_data[n // 2]
+
+            # Variance & std dev (population)
+            variance_val = sum((xi - mean_val) ** 2 for xi in data) / n
+            std_val = math.sqrt(variance_val)
+
+            # Sample variance & std dev
+            if n > 1:
+                sample_var = sum((xi - mean_val) ** 2 for xi in data) / (n - 1)
+                sample_std = math.sqrt(sample_var)
+            else:
+                sample_var = 0.0
+                sample_std = 0.0
+
+            # Mode
+            from collections import Counter
+            counts = Counter(data)
+            max_count = max(counts.values())
+            modes = [k for k, v in counts.items() if v == max_count]
+            mode_str = str(modes[0]) if len(modes) == 1 else str(modes)
+
+            # Range
+            data_range = sorted_data[-1] - sorted_data[0]
+
+            steps.append(f"🔧 **Dataset ({n} values):** {data}")
+            steps.append(f"🔧 **Sorted:** {sorted_data}")
+            steps.append(f"\n📊 **Descriptive Statistics:**")
+            steps.append(f"   Count:              n = {n}")
+            steps.append(f"   Sum:                Σx = {total}")
+            steps.append(f"   Mean:               x̄ = {mean_val:.4f}")
+            steps.append(f"   Median:             {median_val:.4f}")
+            steps.append(f"   Mode:               {mode_str}")
+            steps.append(f"   Range:              {data_range:.4f}")
+            steps.append(f"   Population Std Dev: σ = {std_val:.4f}")
+            steps.append(f"   Sample Std Dev:     s = {sample_std:.4f}")
+            steps.append(f"   Population Variance: σ² = {variance_val:.4f}")
+            steps.append(f"   Sample Variance:    s² = {sample_var:.4f}")
+            steps.append(f"   Min:                {sorted_data[0]}")
+            steps.append(f"   Max:                {sorted_data[-1]}")
+
+            # Q1, Q2, Q3
+            def percentile(sorted_arr, p):
+                idx = p / 100 * (len(sorted_arr) - 1)
+                lo, hi = int(idx), min(int(idx) + 1, len(sorted_arr) - 1)
+                return sorted_arr[lo] + (sorted_arr[hi] - sorted_arr[lo]) * (idx - lo)
+
+            q1 = percentile(sorted_data, 25)
+            q3 = percentile(sorted_data, 75)
+            iqr = q3 - q1
+            steps.append(f"   Q1 (25th pct):      {q1:.4f}")
+            steps.append(f"   Q3 (75th pct):      {q3:.4f}")
+            steps.append(f"   IQR:                {iqr:.4f}")
+
+            # Specific answer based on what was asked
+            if "mean" in problem_lower or "average" in problem_lower:
+                answer = f"Mean = {mean_val:.4f}"
+            elif "median" in problem_lower:
+                answer = f"Median = {median_val:.4f}"
+            elif "mode" in problem_lower:
+                answer = f"Mode = {mode_str}"
+            elif "std" in problem_lower or "standard deviation" in problem_lower:
+                answer = f"Population std = {std_val:.4f},  Sample std = {sample_std:.4f}"
+            elif "variance" in problem_lower:
+                answer = f"Population variance = {variance_val:.4f},  Sample variance = {sample_var:.4f}"
+            else:
+                answer = (
+                    f"n={n}, mean={mean_val:.4f}, median={median_val:.4f}, "
+                    f"std={std_val:.4f}, min={sorted_data[0]}, max={sorted_data[-1]}"
+                )
+
+            steps.append(f"\n✅ **Answer:** {answer}")
+
+            explanation = (
+                f"Full descriptive statistics computed for {n} data points. "
+                f"Mean = {mean_val:.4f}, Median = {median_val:.4f}, "
+                f"Std Dev = {std_val:.4f}."
+            )
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="statistics",
+                difficulty="easy",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   mean of [1, 2, 3, 4, 5]",
+                       "   std of [2.1, 3.4, 5.6, 2.2]",
+                       "   statistics of [10, 20, 30, 40, 50]"],
+                explanation=str(e),
+                problem_type="statistics",
                 difficulty="unknown",
                 confidence=0.0,
             )
