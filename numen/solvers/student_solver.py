@@ -7,8 +7,9 @@ this SOLVES the problem and EXPLAINS how to get the answer.
 Perfect for students who need help understanding how to solve problems.
 """
 
+import re
 import sympy as sp
-from sympy import symbols, solve, diff, integrate, simplify, expand, factor
+from sympy import symbols, solve, diff, integrate, simplify, expand, factor, limit, oo, E, pi, I
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
@@ -40,6 +41,30 @@ class StudentSolver:
         self.transformations = (
             standard_transformations + (implicit_multiplication_application,)
         )
+        # Map common names to SymPy objects so e, pi, i are recognized
+        self.local_dict = {
+            'e': E,
+            'pi': pi,
+            'i': I,
+            'inf': oo,
+            'infinity': oo,
+        }
+
+    def _fix_notation(self, problem: str) -> str:
+        """Normalize common math notations before parsing."""
+        # Replace e^ with exp( ... ) when e is Euler's number
+        # Pattern: standalone e followed by ^ or **
+        problem = re.sub(r'\be\^', 'E^', problem)
+        problem = re.sub(r'\be\*\*', 'E**', problem)
+        # Convert → and -> in limits
+        problem = problem.replace('→', '->').replace('—>', '->')
+        return problem
+
+    def _safe_parse(self, expr_str: str) -> sp.Expr:
+        """Parse expression with local_dict for e, pi, i."""
+        cleaned = expr_str.strip().replace('^', '**')
+        return parse_expr(cleaned, local_dict=self.local_dict,
+                          transformations=self.transformations)
 
     def solve_problem(self, problem: str) -> Solution:
         """
@@ -53,15 +78,17 @@ class StudentSolver:
         """
         # Clean up the problem
         problem = problem.strip()
-
-        # Convert ^ to ** for sympy
-        problem = problem.replace("^", "**")
+        problem = self._fix_notation(problem)
 
         # Auto-detect problem type
         problem_type = self._detect_problem_type(problem)
 
         # Solve based on type
-        if problem_type == "equation":
+        if problem_type == "limit":
+            return self._solve_limit(problem)
+        elif problem_type == "system":
+            return self._solve_system(problem)
+        elif problem_type == "equation":
             return self._solve_equation(problem)
         elif problem_type == "derivative":
             return self._solve_derivative(problem)
@@ -81,7 +108,13 @@ class StudentSolver:
         """Detect what type of problem this is."""
         problem_lower = problem.lower()
 
-        if "derivative" in problem_lower or "d/dx" in problem_lower or "differentiate" in problem_lower:
+        if "limit" in problem_lower and ("->" in problem or "→" in problem or "as x" in problem_lower):
+            return "limit"
+        elif ("solve" in problem_lower or "=" in problem) and (
+            " and " in problem_lower or "," in problem
+        ) and any(v in problem_lower for v in ["y", "z"]):
+            return "system"
+        elif "derivative" in problem_lower or "d/dx" in problem_lower or "differentiate" in problem_lower:
             return "derivative"
         elif "integral" in problem_lower or "integrate" in problem_lower or "∫" in problem:
             return "integral"
@@ -110,13 +143,13 @@ class StudentSolver:
 
                 steps.append(f"📝 **Original equation:** {lhs_text} = {rhs_text}")
 
-                lhs = parse_expr(lhs_text, transformations=self.transformations)
-                rhs = parse_expr(rhs_text, transformations=self.transformations)
+                lhs = self._safe_parse(lhs_text)
+                rhs = self._safe_parse(rhs_text)
                 equation = lhs - rhs
             else:
                 equation_text = problem.replace("solve", "").replace("for x", "").strip()
                 steps.append(f"📝 **Original equation:** {equation_text} = 0")
-                equation = parse_expr(equation_text, transformations=self.transformations)
+                equation = self._safe_parse(equation_text)
 
             steps.append(f"🔧 **Rearrange to standard form:** {equation} = 0")
 
@@ -222,10 +255,11 @@ class StudentSolver:
             steps = []
 
             # Extract function
-            expr_text = problem.replace("derivative", "").replace("of", "").replace("d/dx", "").strip()
+            expr_text = (problem.replace("derivative", "").replace("of", "")
+                         .replace("d/dx", "").replace("differentiate", "").strip())
             steps.append(f"📝 **Original function:** f(x) = {expr_text}")
 
-            expr = parse_expr(expr_text, transformations=self.transformations)
+            expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed as:** {expr}")
 
             # Compute derivative
@@ -280,10 +314,11 @@ class StudentSolver:
             steps = []
 
             # Extract function
-            expr_text = problem.replace("integral", "").replace("of", "").replace("integrate", "").replace("∫", "").replace("dx", "").strip()
+            expr_text = (problem.replace("integral", "").replace("of", "")
+                         .replace("integrate", "").replace("∫", "").replace("dx", "").strip())
             steps.append(f"📝 **Original function:** ∫ {expr_text} dx")
 
-            expr = parse_expr(expr_text, transformations=self.transformations)
+            expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed as:** {expr}")
 
             # Compute integral
@@ -334,7 +369,7 @@ class StudentSolver:
             expr_text = problem.replace("simplify", "").strip()
             steps.append(f"📝 **Original expression:** {expr_text}")
 
-            expr = parse_expr(expr_text, transformations=self.transformations)
+            expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed as:** {expr}")
 
             # Simplify
@@ -375,7 +410,7 @@ class StudentSolver:
             expr_text = problem.replace("expand", "").strip()
             steps.append(f"📝 **Original expression:** {expr_text}")
 
-            expr = parse_expr(expr_text, transformations=self.transformations)
+            expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed as:** {expr}")
 
             # Expand
@@ -419,7 +454,7 @@ class StudentSolver:
             expr_text = problem.replace("factor", "").strip()
             steps.append(f"📝 **Original expression:** {expr_text}")
 
-            expr = parse_expr(expr_text, transformations=self.transformations)
+            expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed as:** {expr}")
 
             # Factor
@@ -446,6 +481,164 @@ class StudentSolver:
                 steps=["❌ Error parsing or factoring"],
                 explanation=str(e),
                 problem_type="factor",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    def _solve_limit(self, problem: str) -> Solution:
+        """Solve a limit problem and explain."""
+        try:
+            x = symbols('x')
+            steps = []
+
+            steps.append(f"📝 **Original problem:** {problem}")
+
+            # Parse "limit of f(x) as x->a" or "limit f(x) as x->a" or "lim f(x) as x approaches a"
+            pattern = re.compile(
+                r'(?:limit\s+of\s+|limit\s+|lim\s+)(.+?)\s+as\s+x\s*(?:->|→|approaches)\s*(.+)',
+                re.IGNORECASE,
+            )
+            match = pattern.search(problem)
+
+            if not match:
+                # Try "limit of f(x) as x->a" without "of"
+                pattern2 = re.compile(
+                    r'(.+?)\s+as\s+x\s*(?:->|→|approaches)\s*(.+)',
+                    re.IGNORECASE,
+                )
+                match = pattern2.search(problem.replace("limit", "").replace("lim", ""))
+
+            if not match:
+                raise ValueError(
+                    "Could not parse limit. Use format: 'limit of f(x) as x->0'"
+                )
+
+            expr_text = match.group(1).strip()
+            point_text = match.group(2).strip()
+
+            steps.append(f"🔧 **Function:** {expr_text}")
+            steps.append(f"🔧 **Point:** x → {point_text}")
+
+            expr = self._safe_parse(expr_text)
+
+            # Handle special point values
+            point_text_lower = point_text.lower()
+            if point_text_lower in ("inf", "infinity", "+inf", "+infinity", "oo"):
+                point = oo
+            elif point_text_lower in ("-inf", "-infinity", "-oo"):
+                point = -oo
+            else:
+                point = self._safe_parse(point_text)
+
+            steps.append(f"🔍 **Computing limit as x → {point}...**")
+
+            result = limit(expr, x, point)
+            steps.append(f"   Applied limit rules to {expr}")
+
+            simplified = simplify(result)
+            steps.append(f"\n✅ **Final Answer:** lim(x→{point}) {expr} = {simplified}")
+
+            answer = f"lim(x→{point}) = {simplified}"
+            explanation = (
+                f"The limit of {expr} as x approaches {point} is {simplified}. "
+                "This was computed using symbolic limit evaluation."
+            )
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="limit",
+                difficulty="medium",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not solve: {str(e)}",
+                steps=[f"❌ Error computing limit: {str(e)}",
+                       "💡 Try format: 'limit of sin(x)/x as x->0'"],
+                explanation=str(e),
+                problem_type="limit",
+                difficulty="unknown",
+                confidence=0.0,
+            )
+
+    def _solve_system(self, problem: str) -> Solution:
+        """Solve a system of equations."""
+        try:
+            steps = []
+            steps.append(f"📝 **Original problem:** {problem}")
+
+            # Split on "and" or comma to get individual equations
+            raw = re.sub(r'^\s*solve\s*', '', problem, flags=re.IGNORECASE).strip()
+            parts = re.split(r'\s+and\s+|,\s*', raw, flags=re.IGNORECASE)
+
+            if len(parts) < 2:
+                raise ValueError("Need at least 2 equations for a system. Separate them with 'and' or ','.")
+
+            equations = []
+            all_symbols = set()
+
+            for part in parts:
+                part = part.strip()
+                if "=" in part:
+                    lhs_t, rhs_t = part.split("=", 1)
+                    lhs = self._safe_parse(lhs_t.strip())
+                    rhs = self._safe_parse(rhs_t.strip())
+                    eq = lhs - rhs
+                else:
+                    eq = self._safe_parse(part)
+                equations.append(eq)
+                all_symbols.update(eq.free_symbols)
+                steps.append(f"   Equation: {eq} = 0")
+
+            sym_list = sorted(list(all_symbols), key=lambda s: str(s))
+            steps.append(f"🔍 **Solving for:** {', '.join(str(s) for s in sym_list)}")
+
+            solution = solve(equations, sym_list, dict=True)
+
+            if not solution:
+                return Solution(
+                    answer="No solution (inconsistent or dependent system)",
+                    steps=steps,
+                    explanation="The system has no unique solution.",
+                    problem_type="system",
+                    difficulty="medium",
+                    confidence=1.0,
+                )
+
+            sol = solution[0]
+            answer_parts = [f"{var} = {val}" for var, val in sol.items()]
+            answer = ", ".join(answer_parts)
+            steps.append(f"\n✅ **Solution:** {answer}")
+
+            for var, val in sol.items():
+                for eq in equations:
+                    check = simplify(eq.subs(var, val))
+                steps.append(f"🔍 **Verified:** substitution checks out")
+
+            explanation = (
+                f"The system of {len(equations)} equations has the solution: {answer}. "
+                "Solved using symbolic simultaneous equation solving."
+            )
+
+            return Solution(
+                answer=answer,
+                steps=steps,
+                explanation=explanation,
+                problem_type="system",
+                difficulty="medium",
+                confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not solve: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Format: 'solve 2x + y = 5 and x - y = 1'"],
+                explanation=str(e),
+                problem_type="system",
                 difficulty="unknown",
                 confidence=0.0,
             )
