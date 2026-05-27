@@ -449,39 +449,211 @@ def plot_functions(func_input: str, x_min: float, x_max: float,
 # ---------------------------------------------------------------------------
 
 _CUSTOM_CSS = """
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-*, body, .gradio-container, button, input, textarea, select, label {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+/* ── Font ── */
+*, body, .gradio-container, button, input, textarea, select, label, p, span, td, th, li {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
-code, pre, .monospace {
+code, pre {
     font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
 }
 
+/* ── Cosmic dark background ── */
+body, .gradio-container {
+    background: #04070f !important;
+    background-image:
+        radial-gradient(ellipse at 20% 45%, rgba(10, 30, 100, 0.55) 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 15%, rgba(5, 20, 80, 0.45) 0%, transparent 50%),
+        radial-gradient(ellipse at 55% 85%, rgba(0, 25, 75, 0.35) 0%, transparent 45%) !important;
+    min-height: 100vh;
+}
+
+/* ── Hero ── */
 #hero {
     text-align: center;
-    padding: 28px 0 16px;
+    padding: 40px 0 20px;
 }
 #hero h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0 0 6px;
-    letter-spacing: -0.5px;
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -1.5px;
+    margin: 0 0 10px;
+    background: linear-gradient(140deg, #7ec8ff 0%, #ffffff 40%, #a5d8ff 70%, #4fa8ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 22px rgba(96, 190, 255, 0.45));
 }
 #hero .sub {
-    color: #6b7280;
-    font-size: 0.92rem;
+    color: rgba(147, 197, 253, 0.65);
+    font-size: 0.88rem;
+    letter-spacing: 0.8px;
     margin: 0;
+    font-weight: 400;
 }
 
+/* ── Panels ── */
+.block, .panel, .gr-group, .form {
+    background: rgba(6, 14, 40, 0.75) !important;
+    border: 1px solid rgba(59, 130, 246, 0.14) !important;
+    border-radius: 12px !important;
+    backdrop-filter: blur(12px) !important;
+}
+
+/* ── Tab bar ── */
+.tab-nav {
+    background: rgba(4, 10, 30, 0.85) !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.18) !important;
+    border-radius: 0 !important;
+}
+.tab-nav button {
+    color: rgba(148, 190, 255, 0.55) !important;
+    font-weight: 500 !important;
+    background: transparent !important;
+    border: none !important;
+    transition: all 0.2s ease !important;
+    letter-spacing: 0.2px !important;
+}
+.tab-nav button.selected {
+    color: #7ec8ff !important;
+    border-bottom: 2px solid #3b82f6 !important;
+    background: rgba(59, 130, 246, 0.07) !important;
+}
+.tab-nav button:hover:not(.selected) {
+    color: rgba(148, 190, 255, 0.85) !important;
+}
+
+/* ── Labels ── */
+label span, .label-wrap span {
+    color: rgba(148, 190, 255, 0.7) !important;
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.4px !important;
+    text-transform: uppercase !important;
+}
+
+/* ── Inputs ── */
+input[type=text], input[type=number], textarea, .wrap-inner {
+    background: rgba(3, 9, 28, 0.85) !important;
+    border: 1px solid rgba(59, 130, 246, 0.22) !important;
+    border-radius: 8px !important;
+    color: #d8ecff !important;
+    caret-color: #60b8ff !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+input[type=text]:focus, input[type=number]:focus, textarea:focus {
+    border-color: rgba(59, 130, 246, 0.55) !important;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1),
+                0 0 18px rgba(30, 100, 255, 0.18) !important;
+}
+input::placeholder, textarea::placeholder {
+    color: rgba(80, 130, 200, 0.38) !important;
+}
+select, .wrap .wrap-inner {
+    background: rgba(3, 9, 28, 0.85) !important;
+    color: #d8ecff !important;
+    border-color: rgba(59, 130, 246, 0.22) !important;
+}
+
+/* ── Primary button ── */
+button.primary {
+    background: linear-gradient(135deg, #1a6fff 0%, #0033bb 100%) !important;
+    border: none !important;
+    border-radius: 8px !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.3px !important;
+    box-shadow: 0 0 24px rgba(26, 111, 255, 0.4),
+                0 2px 10px rgba(0, 0, 0, 0.5) !important;
+    transition: all 0.2s ease !important;
+}
+button.primary:hover {
+    box-shadow: 0 0 36px rgba(26, 111, 255, 0.65),
+                0 4px 16px rgba(0, 0, 0, 0.5) !important;
+    transform: translateY(-1px) !important;
+}
+button.primary:active {
+    transform: translateY(0) !important;
+}
+
+/* ── Secondary / small buttons ── */
+button:not(.primary):not(.tab-nav button) {
+    background: rgba(8, 22, 60, 0.85) !important;
+    border: 1px solid rgba(59, 130, 246, 0.2) !important;
+    border-radius: 7px !important;
+    color: rgba(148, 190, 255, 0.75) !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+button:not(.primary):not(.tab-nav button):hover {
+    border-color: rgba(59, 130, 246, 0.5) !important;
+    background: rgba(12, 32, 80, 0.95) !important;
+    color: #a5d4ff !important;
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* ── Answer box ── */
 .answer-box {
-    background: #f0f7ff;
-    border-left: 4px solid #3b82f6;
-    border-radius: 6px;
-    padding: 14px 18px;
-    margin-top: 6px;
+    background: rgba(4, 16, 52, 0.65) !important;
+    border: 1px solid rgba(59, 130, 246, 0.28) !important;
+    border-radius: 10px !important;
+    padding: 18px 20px !important;
+    box-shadow: 0 0 50px rgba(0, 70, 220, 0.08),
+                inset 0 0 30px rgba(0, 50, 160, 0.04) !important;
+    margin-top: 8px !important;
 }
 
+/* ── Markdown text ── */
+.prose p, .md p, p { color: #b8d8ff !important; }
+.prose li, .md li, li { color: #b0d0f8 !important; }
+.prose h2, .prose h3, h2, h3 { color: #7ec8ff !important; font-weight: 600 !important; }
+strong, b { color: #c8e4ff !important; }
+em, i { color: #a0c8ff !important; }
+
+code {
+    background: rgba(20, 60, 180, 0.18) !important;
+    border: 1px solid rgba(59, 130, 246, 0.22) !important;
+    border-radius: 4px !important;
+    color: #7ec8ff !important;
+    padding: 1px 6px !important;
+    font-size: 0.88em !important;
+}
+
+/* ── Tables ── */
+table { border-collapse: collapse !important; width: 100% !important; }
+th {
+    background: rgba(8, 25, 75, 0.9) !important;
+    color: #7ec8ff !important;
+    font-weight: 600 !important;
+    padding: 9px 14px !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.25) !important;
+    font-size: 0.85rem !important;
+    letter-spacing: 0.3px !important;
+}
+td {
+    padding: 8px 14px !important;
+    border-bottom: 1px solid rgba(59, 130, 246, 0.07) !important;
+    color: #a8ccf0 !important;
+    font-size: 0.9rem !important;
+}
+tr:hover td { background: rgba(30, 80, 200, 0.06) !important; }
+
+/* ── Dividers ── */
+hr {
+    border: none !important;
+    border-top: 1px solid rgba(59, 130, 246, 0.15) !important;
+    margin: 22px 0 !important;
+}
+
+/* ── Checkboxes / radios ── */
+input[type=checkbox], input[type=radio] { accent-color: #3b82f6 !important; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; background: #04070f; }
+::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.28); border-radius: 3px; }
+
+/* ── Footer ── */
 footer { display: none !important; }
 """
 
@@ -489,13 +661,13 @@ footer { display: none !important; }
 def create_public_ui():
     with gr.Blocks(
         title="Numen — Math Solver",
-        theme=gr.themes.Soft(),
+        theme=gr.themes.Base(),
         css=_CUSTOM_CSS,
     ) as app:
 
         gr.HTML("""
         <div id="hero">
-          <h1>🧮 Numen</h1>
+          <h1>✦ Numen</h1>
           <p class="sub">Algebra &nbsp;·&nbsp; Calculus &nbsp;·&nbsp; Matrices &nbsp;·&nbsp; Statistics &nbsp;·&nbsp; Graphing &nbsp;·&nbsp; 100% accurate &nbsp;·&nbsp; Free</p>
         </div>
         """)
