@@ -747,11 +747,10 @@ def _symbol_keyboard(target_input):
 
 
 def create_public_ui():
-    with gr.Blocks(
-        title="Numen — Math Solver",
-        theme=gr.themes.Base(),
-        css=_CUSTOM_CSS,
-    ) as app:
+    with gr.Blocks(title="Numen — Math Solver") as app:
+
+        # Inject CSS via <style> tag — works in Gradio 4, 5, and 6
+        gr.HTML(f"<style>{_CUSTOM_CSS}</style>")
 
         gr.HTML("""
         <div id="hero">
@@ -834,11 +833,10 @@ def create_public_ui():
                             value="*Upload a photo — text is extracted automatically.*"
                         )
                         photo_text = gr.Textbox(
-                            label="Extracted text — click to edit, select to copy",
+                            label="Extracted text — click to edit, select all to copy",
                             placeholder="OCR result will appear here. Fix any mistakes, then press Solve.",
                             lines=4,
                             interactive=True,
-                            show_copy_button=True,
                         )
 
                 # Symbol keyboard wired to the editable OCR textbox
