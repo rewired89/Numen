@@ -52,12 +52,38 @@ class StudentSolver:
 
     def _fix_notation(self, problem: str) -> str:
         """Normalize common math notations before parsing."""
-        # Replace e^ with exp( ... ) when e is Euler's number
-        # Pattern: standalone e followed by ^ or **
+        # Unicode math symbols → Numen text commands
+        unicode_map = [
+            ('∫', 'integral of '),
+            ('∂', 'derivative of '),
+            ('∑', 'sum of '),
+            ('√', 'sqrt'),
+            ('∛', 'cbrt'),
+            ('π', 'pi'),
+            ('∞', 'infinity'),
+            ('×', '*'),
+            ('÷', '/'),
+            ('±', '+-'),
+            ('≤', '<='),
+            ('≥', '>='),
+            ('≠', '!='),
+            ('→', '->'),
+            ('—>', '->'),
+            ('·', '*'),
+            # Superscript digits
+            ('⁰', '^0'), ('¹', '^1'), ('²', '^2'), ('³', '^3'),
+            ('⁴', '^4'), ('⁵', '^5'), ('⁶', '^6'), ('⁷', '^7'),
+            ('⁸', '^8'), ('⁹', '^9'),
+            # Greek letters
+            ('α', 'alpha'), ('β', 'beta'), ('γ', 'gamma'), ('δ', 'delta'),
+            ('θ', 'theta'), ('λ', 'lambda'), ('μ', 'mu'), ('σ', 'sigma'),
+            ('φ', 'phi'), ('ω', 'omega'),
+        ]
+        for sym, replacement in unicode_map:
+            problem = problem.replace(sym, replacement)
+        # e^ → E^ (Euler's number, not variable)
         problem = re.sub(r'\be\^', 'E^', problem)
         problem = re.sub(r'\be\*\*', 'E**', problem)
-        # Convert → and -> in limits
-        problem = problem.replace('→', '->').replace('—>', '->')
         return problem
 
     def _safe_parse(self, expr_str: str) -> sp.Expr:

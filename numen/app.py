@@ -701,67 +701,49 @@ footer { display: none !important; }
 
 
 def _symbol_keyboard(target_input):
-    """Render a collapsible math symbol pad that appends to target_input."""
+    """Collapsible math symbol pad — inserts Unicode symbols the solver understands."""
 
-    def ins(snippet):
-        def _fn(current):
-            return (current or "") + snippet
+    def ins(sym):
+        def _fn(cur): return (cur or "") + sym
         return _fn
 
     with gr.Accordion("⌨  Math Symbols", open=False):
-        gr.Markdown("*Click a symbol to insert it into your problem.*")
+        gr.Markdown("*Click a symbol — it will appear in your problem box.*")
 
-        gr.Markdown("**Powers & roots**")
-        with gr.Row():
-            b_sq, b_cu, b_pow, b_sqrt, b_abs = (
-                gr.Button("x²", size="sm"), gr.Button("x³", size="sm"),
-                gr.Button("xⁿ → ^", size="sm"), gr.Button("√ → sqrt(", size="sm"),
-                gr.Button("|x| → Abs(", size="sm"),
-            )
+        # Row labels + buttons + what gets inserted
+        #  label,  display,  inserted
+        rows = [
+            ("Powers & roots", [
+                ("x²",  "²"),   ("x³",  "³"),   ("xⁿ",  "^"),
+                ("√",   "√"),   ("∛",   "∛"),   ("|x|", "Abs("),
+            ]),
+            ("Calculus", [
+                ("∫",    "∫ "),   ("d/dx", "derivative of "),
+                ("∫ₐᵇ",  "∫  from  to "),
+                ("lim",  "limit of  as x→"),
+                ("∂/∂x", "∂"),    ("ODE",  "ode "),
+            ]),
+            ("Constants & Greek", [
+                ("π",  "π"),  ("e",  "e"),  ("∞",  "∞"),  ("i",  "i"),
+                ("α",  "α"),  ("β",  "β"),  ("θ",  "θ"),  ("λ",  "λ"),
+            ]),
+            ("Trig & functions", [
+                ("sin", "sin("), ("cos", "cos("), ("tan", "tan("),
+                ("log", "log("), ("ln",  "ln("),  ("exp", "exp("),
+            ]),
+            ("Operators", [
+                ("×",  "×"),  ("÷",  "÷"),  ("±",  "±"),
+                ("≤",  "≤"),  ("≥",  "≥"),  ("≠",  "≠"),
+                ("(",  "("),  (")",  ")"),  ("=",  " = "),
+            ]),
+        ]
 
-        gr.Markdown("**Calculus**")
-        with gr.Row():
-            b_deriv, b_integ, b_defint, b_lim, b_ode = (
-                gr.Button("d/dx  → derivative of",        size="sm"),
-                gr.Button("∫     → integral of",           size="sm"),
-                gr.Button("∫ₐᵇ   → integral … from … to", size="sm"),
-                gr.Button("lim   → limit of … as x→",     size="sm"),
-                gr.Button("ODE   → ode",                   size="sm"),
-            )
-
-        gr.Markdown("**Constants**")
-        with gr.Row():
-            b_pi, b_e, b_inf, b_i = (
-                gr.Button("π → pi", size="sm"), gr.Button("e", size="sm"),
-                gr.Button("∞ → infinity", size="sm"), gr.Button("i", size="sm"),
-            )
-
-        gr.Markdown("**Trig & functions**")
-        with gr.Row():
-            b_sin, b_cos, b_tan, b_log, b_exp, b_ln = (
-                gr.Button("sin(", size="sm"), gr.Button("cos(", size="sm"),
-                gr.Button("tan(", size="sm"), gr.Button("log(", size="sm"),
-                gr.Button("exp(", size="sm"), gr.Button("ln(", size="sm"),
-            )
-
-        gr.Markdown("**Operators & grouping**")
-        with gr.Row():
-            b_mul, b_div, b_lp, b_rp, b_eq, b_pm = (
-                gr.Button("× → *", size="sm"), gr.Button("÷ → /", size="sm"),
-                gr.Button("(", size="sm"), gr.Button(")", size="sm"),
-                gr.Button("=", size="sm"), gr.Button("± → +-", size="sm"),
-            )
-
-        for btn, snip in [
-            (b_sq, "^2"), (b_cu, "^3"), (b_pow, "^"), (b_sqrt, "sqrt("), (b_abs, "Abs("),
-            (b_deriv, "derivative of "), (b_integ, "integral of "),
-            (b_defint, "integral of  from  to "), (b_lim, "limit of  as x->"), (b_ode, "ode "),
-            (b_pi, "pi"), (b_e, "e"), (b_inf, "infinity"), (b_i, "i"),
-            (b_sin, "sin("), (b_cos, "cos("), (b_tan, "tan("),
-            (b_log, "log("), (b_exp, "exp("), (b_ln, "ln("),
-            (b_mul, "*"), (b_div, "/"), (b_lp, "("), (b_rp, ")"), (b_eq, " = "), (b_pm, "+-"),
-        ]:
-            btn.click(fn=ins(snip), inputs=[target_input], outputs=[target_input])
+        for label, symbols_list in rows:
+            gr.Markdown(f"**{label}**")
+            with gr.Row():
+                for display, inserted in symbols_list:
+                    b = gr.Button(display, size="sm")
+                    b.click(fn=ins(inserted), inputs=[target_input], outputs=[target_input])
 
 
 def create_public_ui():
@@ -834,6 +816,12 @@ def create_public_ui():
 
             # ── Tab 2: Photo ─────────────────────────────────────────────
             with gr.Tab("Photo"):
+                gr.Markdown(
+                    "> **How it works:** Upload a photo → Numen tries to read the text → "
+                    "you fix any mistakes in the editable box below → press **Solve**.\n\n"
+                    "> ⚠ **Note:** Math OCR is hard. Superscripts (x², x³), fractions (∂f/∂y) "
+                    "and special symbols are often misread. Always check and correct the extracted text."
+                )
                 with gr.Row():
                     with gr.Column(scale=2):
                         photo_input = gr.Image(
@@ -841,16 +829,16 @@ def create_public_ui():
                             type="pil",
                             sources=["upload", "webcam"],
                         )
-                        gr.Markdown("*Best with printed text. Good lighting, no shadows.*")
                     with gr.Column(scale=3):
                         photo_status = gr.Markdown(
                             value="*Upload a photo — text is extracted automatically.*"
                         )
                         photo_text = gr.Textbox(
-                            label="Extracted text  (edit anything wrong)",
-                            placeholder="OCR result will appear here…",
-                            lines=3,
+                            label="Extracted text — click to edit, select to copy",
+                            placeholder="OCR result will appear here. Fix any mistakes, then press Solve.",
+                            lines=4,
                             interactive=True,
+                            show_copy_button=True,
                         )
 
                 # Symbol keyboard wired to the editable OCR textbox
@@ -860,14 +848,11 @@ def create_public_ui():
                     photo_solve_btn = gr.Button("Solve", variant="primary", scale=4)
                     photo_clear_btn = gr.Button("Clear", scale=1)
 
-                photo_answer = gr.Markdown(
-                    value="",
-                    elem_classes=["answer-box"],
-                )
+                photo_answer = gr.Markdown(value="", elem_classes=["answer-box"])
                 photo_steps = gr.Markdown()
                 photo_explain = gr.Markdown()
 
-                # Auto-OCR as soon as an image is uploaded
+                # Auto-OCR fires the moment an image is uploaded
                 photo_input.change(
                     fn=auto_ocr,
                     inputs=[photo_input],
@@ -879,7 +864,7 @@ def create_public_ui():
                     outputs=[photo_answer, photo_steps, photo_explain],
                 )
                 photo_clear_btn.click(
-                    fn=lambda: (None, "", "", "", "", ""),
+                    fn=lambda: (None, "", "*Upload a photo — text is extracted automatically.*", "", "", ""),
                     outputs=[photo_input, photo_text, photo_status,
                              photo_answer, photo_steps, photo_explain],
                 )
