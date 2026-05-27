@@ -36,23 +36,7 @@ def cmd_up(args):
     print(f"  Local URL: http://localhost:{args.port}")
     print("  Press Ctrl+C to stop.\n")
 
-    # Import here so CLI startup is instant even without all deps
-    try:
-        from public_ui import create_public_ui
-    except ImportError:
-        # Fallback: try relative import if running from project root
-        import importlib.util, os
-        spec = importlib.util.spec_from_file_location(
-            "public_ui",
-            os.path.join(os.path.dirname(__file__), "..", "public_ui.py"),
-        )
-        mod = importlib.util.load_from_spec(spec) if hasattr(importlib.util, 'load_from_spec') else None
-        if mod is None:
-            spec.loader.exec_module(importlib.util.module_from_spec(spec))
-            import public_ui as _pub
-            create_public_ui = _pub.create_public_ui
-        else:
-            create_public_ui = mod.create_public_ui
+    from numen.app import create_public_ui
 
     app = create_public_ui()
     app.launch(
