@@ -96,6 +96,18 @@ class StudentSolver:
             return self._solve_matrix(problem)
         elif problem_type == "statistics":
             return self._solve_statistics(problem)
+        elif problem_type == "laplace":
+            return self._solve_laplace(problem)
+        elif problem_type == "inverse_laplace":
+            return self._solve_inverse_laplace(problem)
+        elif problem_type == "fourier":
+            return self._solve_fourier(problem)
+        elif problem_type == "double_integral":
+            return self._solve_double_integral(problem)
+        elif problem_type == "probability":
+            return self._solve_probability(problem)
+        elif problem_type == "regression":
+            return self._solve_regression(problem)
         elif problem_type == "equation":
             return self._solve_equation(problem)
         elif problem_type == "derivative":
@@ -117,6 +129,29 @@ class StudentSolver:
 
         if "limit" in problem_lower and ("->" in problem or "→" in problem or "as x" in problem_lower):
             return "limit"
+        elif "inverse laplace" in problem_lower:
+            return "inverse_laplace"
+        elif "laplace" in problem_lower and (
+            "transform" in problem_lower or "of" in problem_lower
+        ):
+            return "laplace"
+        elif "fourier" in problem_lower and (
+            "transform" in problem_lower or "of" in problem_lower
+        ):
+            return "fourier"
+        elif any(k in problem_lower for k in ("double integral", "double integrate",
+                                               "triple integral", "∬", "∭")):
+            return "double_integral"
+        elif any(k in problem_lower for k in (
+            "normal distribution", "binomial distribution", "poisson distribution",
+            "exponential distribution", "normal pdf", "normal cdf",
+            "binomial pmf", "poisson pmf", "distribution",
+        )):
+            return "probability"
+        elif any(k in problem_lower for k in (
+            "regression", "linear fit", "best fit", "least squares",
+        )):
+            return "regression"
         elif ("integral" in problem_lower or "integrate" in problem_lower) and (
             " from " in problem_lower and " to " in problem_lower
         ):
@@ -1117,4 +1152,458 @@ class StudentSolver:
                 problem_type="statistics",
                 difficulty="unknown",
                 confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Laplace Transform
+    # ------------------------------------------------------------------
+
+    def _solve_laplace(self, problem: str) -> Solution:
+        """Compute the Laplace transform of a function."""
+        try:
+            from sympy import laplace_transform, symbols as syms, Function
+            t, s = syms('t s', positive=True)
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+
+            raw = re.sub(r'laplace\s+transform\s+of\s*', '', problem, flags=re.IGNORECASE)
+            raw = re.sub(r'laplace\s+of\s*', '', raw, flags=re.IGNORECASE).strip()
+
+            local = {**self.local_dict, 't': t, 's': s}
+            expr = parse_expr(raw.replace('^', '**'), local_dict=local,
+                              transformations=self.transformations)
+
+            steps.append(f"🔧 **f(t) =** {expr}")
+            steps.append("🔍 **Applying Laplace transform: L{{f(t)}} = ∫₀^∞ f(t)e^(-st) dt**")
+
+            result, cond, _ = laplace_transform(expr, t, s)
+            result = simplify(result)
+
+            steps.append(f"   Condition: {cond}")
+            steps.append(f"\n✅ **L{{f(t)}} = {result}**")
+
+            answer = f"L{{f(t)}} = {result}"
+            explanation = (
+                f"The Laplace transform of {expr} is {result}. "
+                f"Valid for {cond}. "
+                "Use Laplace transforms to solve ODEs by converting them to algebraic equations."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="laplace", difficulty="hard", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   laplace transform of sin(t)",
+                       "   laplace transform of t^2",
+                       "   laplace transform of exp(-2*t)*cos(t)"],
+                explanation=str(e), problem_type="laplace",
+                difficulty="unknown", confidence=0.0,
+            )
+
+    def _solve_inverse_laplace(self, problem: str) -> Solution:
+        """Compute the inverse Laplace transform."""
+        try:
+            from sympy import inverse_laplace_transform, symbols as syms
+            t, s = syms('t s', positive=True)
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+
+            raw = re.sub(r'inverse\s+laplace\s+(?:transform\s+)?(?:of\s*)?', '',
+                         problem, flags=re.IGNORECASE).strip()
+
+            local = {**self.local_dict, 't': t, 's': s}
+            expr = parse_expr(raw.replace('^', '**'), local_dict=local,
+                              transformations=self.transformations)
+
+            steps.append(f"🔧 **F(s) =** {expr}")
+            steps.append("🔍 **Computing inverse Laplace transform: L⁻¹{{F(s)}}**")
+
+            result = inverse_laplace_transform(expr, s, t)
+            result = simplify(result)
+
+            steps.append(f"\n✅ **L⁻¹{{F(s)}} = {result}**")
+
+            answer = f"f(t) = {result}"
+            explanation = (
+                f"The inverse Laplace transform of {expr} is {result}. "
+                "This recovers the time-domain function from the s-domain representation."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="inverse_laplace", difficulty="hard", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   inverse laplace of 1/(s+2)",
+                       "   inverse laplace of s/(s^2+1)",
+                       "   inverse laplace of 1/(s^2+4*s+5)"],
+                explanation=str(e), problem_type="inverse_laplace",
+                difficulty="unknown", confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Fourier Transform
+    # ------------------------------------------------------------------
+
+    def _solve_fourier(self, problem: str) -> Solution:
+        """Compute the Fourier transform of a function."""
+        try:
+            from sympy import fourier_transform, symbols as syms
+            x, k = syms('x k')
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+
+            raw = re.sub(r'fourier\s+transform\s+of\s*', '', problem, flags=re.IGNORECASE)
+            raw = re.sub(r'fourier\s+of\s*', '', raw, flags=re.IGNORECASE).strip()
+
+            local = {**self.local_dict, 'x': x, 'k': k}
+            expr = parse_expr(raw.replace('^', '**'), local_dict=local,
+                              transformations=self.transformations)
+
+            steps.append(f"🔧 **f(x) =** {expr}")
+            steps.append("🔍 **Applying Fourier transform: F(k) = ∫ f(x) e^(-2πi k x) dx**")
+
+            result = fourier_transform(expr, x, k)
+            result = simplify(result)
+
+            steps.append(f"\n✅ **F(k) = {result}**")
+
+            answer = f"F(k) = {result}"
+            explanation = (
+                f"The Fourier transform of {expr} is {result}. "
+                "Fourier transforms decompose a function into its frequency components."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="fourier", difficulty="hard", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   fourier transform of exp(-x^2)",
+                       "   fourier transform of exp(-Abs(x))",
+                       "   fourier transform of 1/(1+x^2)"],
+                explanation=str(e), problem_type="fourier",
+                difficulty="unknown", confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Double / Triple Integrals
+    # ------------------------------------------------------------------
+
+    def _solve_double_integral(self, problem: str) -> Solution:
+        """Compute a double or triple integral."""
+        try:
+            from sympy import symbols as syms
+            x, y, z = syms('x y z')
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+
+            problem_lower = problem.lower()
+            is_triple = "triple" in problem_lower or "∭" in problem
+
+            # Strip leading keyword
+            raw = re.sub(r'^(?:double|triple)\s+integral\s+(?:of\s*)?', '',
+                         problem, flags=re.IGNORECASE).strip()
+
+            # Pattern: f(x,y) dx from a to b dy from c to d [dz from e to f]
+            # Also accept: f(x,y) dA where dA implies dx dy
+            bound_pattern = re.compile(
+                r'(.+?)\s+dx\s+from\s+(.+?)\s+to\s+(.+?)\s+dy\s+from\s+(.+?)\s+to\s+(.+?)(?:\s+dz\s+from\s+(.+?)\s+to\s+(.+?))?$',
+                re.IGNORECASE,
+            )
+            m = bound_pattern.search(raw)
+            if not m:
+                raise ValueError(
+                    "Use format: 'double integral of f(x,y) dx from a to b dy from c to d'"
+                )
+
+            func_str = m.group(1).strip()
+            x_lo, x_hi = m.group(2).strip(), m.group(3).strip()
+            y_lo, y_hi = m.group(4).strip(), m.group(5).strip()
+            z_lo = m.group(6).strip() if m.group(6) else None
+            z_hi = m.group(7).strip() if m.group(7) else None
+
+            local = {**self.local_dict, 'x': x, 'y': y, 'z': z}
+            expr = parse_expr(func_str.replace('^', '**'), local_dict=local,
+                              transformations=self.transformations)
+
+            xl = parse_expr(x_lo.replace('^', '**'), local_dict=local, transformations=self.transformations)
+            xh = parse_expr(x_hi.replace('^', '**'), local_dict=local, transformations=self.transformations)
+            yl = parse_expr(y_lo.replace('^', '**'), local_dict=local, transformations=self.transformations)
+            yh = parse_expr(y_hi.replace('^', '**'), local_dict=local, transformations=self.transformations)
+
+            steps.append(f"🔧 **Integrand:** {expr}")
+            steps.append(f"🔧 **x bounds:** [{xl}, {xh}]   y bounds: [{yl}, {yh}]")
+
+            # Inner integral over x
+            steps.append("🔍 **Step 1 — Integrate over x:**")
+            inner = integrate(expr, (x, xl, xh))
+            inner = simplify(inner)
+            steps.append(f"   ∫ {expr} dx from {xl} to {xh} = {inner}")
+
+            # Outer integral over y
+            steps.append("🔍 **Step 2 — Integrate over y:**")
+            result = integrate(inner, (y, yl, yh))
+            result = simplify(result)
+            steps.append(f"   ∫ {inner} dy from {yl} to {yh} = {result}")
+
+            # Optional triple integral over z
+            if z_lo and z_hi and is_triple:
+                zl = parse_expr(z_lo.replace('^', '**'), local_dict=local, transformations=self.transformations)
+                zh = parse_expr(z_hi.replace('^', '**'), local_dict=local, transformations=self.transformations)
+                steps.append("🔍 **Step 3 — Integrate over z:**")
+                result = simplify(integrate(result, (z, zl, zh)))
+                steps.append(f"   Final = {result}")
+
+            try:
+                num = float(result)
+                answer = f"{result}  ≈  {num:.4f}"
+                steps.append(f"📐 **Numerical value:** {num:.6f}")
+            except (TypeError, ValueError):
+                answer = str(result)
+
+            steps.append(f"\n✅ **Final Answer:** {answer}")
+
+            label = "Triple" if is_triple else "Double"
+            explanation = (
+                f"The {label} integral evaluates to {result}. "
+                "Computed by iterating: integrate over x first, then y (then z for triple). "
+                "This represents volume/area under the surface f(x,y)."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="double_integral", difficulty="hard", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Format:",
+                       "   double integral of x*y dx from 0 to 1 dy from 0 to 1",
+                       "   double integral of x^2+y^2 dx from 0 to 2 dy from 0 to 2"],
+                explanation=str(e), problem_type="double_integral",
+                difficulty="unknown", confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Probability Distributions
+    # ------------------------------------------------------------------
+
+    def _solve_probability(self, problem: str) -> Solution:
+        """Evaluate probability distributions: Normal, Binomial, Poisson, Exponential."""
+        try:
+            import math
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+            p_lower = problem.lower()
+
+            def parse_param(text, *keys):
+                for k in keys:
+                    m = re.search(rf'\b{re.escape(k)}\s*=\s*([\d.\-]+)', text, re.IGNORECASE)
+                    if m:
+                        return float(m.group(1))
+                return None
+
+            def parse_x(text):
+                """Parse the standalone x= value (not inside a word like 'exponential')."""
+                m = re.search(r'(?<![a-z])x\s*=\s*([\d.\-]+)', text, re.IGNORECASE)
+                return float(m.group(1)) if m else None
+
+            # ── Normal distribution ──────────────────────────────────────
+            if any(k in p_lower for k in ("normal", "gaussian")):
+                mu = parse_param(problem, "mean", "mu") or 0.0
+                sigma = parse_param(problem, "std", "sigma", "sd") or 1.0
+                x_val = parse_x(problem)
+
+                steps.append(f"🔧 **Normal distribution: N(μ={mu}, σ={sigma})**")
+                steps.append(f"   PDF: f(x) = (1/(σ√2π)) · exp(-(x-μ)²/(2σ²))")
+                steps.append(f"   Mean = {mu},  Std Dev = {sigma},  Variance = {sigma**2}")
+
+                if x_val is not None:
+                    z = (x_val - mu) / sigma
+                    pdf_val = (1/(sigma * math.sqrt(2*math.pi))) * math.exp(-0.5 * z**2)
+                    cdf_val = 0.5 * (1 + math.erf(z / math.sqrt(2)))
+                    steps.append(f"\n   At x = {x_val}:")
+                    steps.append(f"   z-score = (x - μ)/σ = ({x_val} - {mu})/{sigma} = {z:.4f}")
+                    steps.append(f"   PDF f({x_val}) = {pdf_val:.6f}")
+                    steps.append(f"   CDF P(X ≤ {x_val}) = {cdf_val:.6f}")
+                    steps.append(f"   P(X > {x_val}) = {1-cdf_val:.6f}")
+                    answer = f"PDF={pdf_val:.4f}, CDF P(X≤{x_val})={cdf_val:.4f}, z={z:.4f}"
+                else:
+                    answer = f"N(μ={mu}, σ={sigma}): Mean={mu}, Variance={sigma**2}, Std={sigma}"
+
+            # ── Binomial distribution ────────────────────────────────────
+            elif "binomial" in p_lower:
+                n = int(parse_param(problem, "n") or 10)
+                p = parse_param(problem, r"p\s*=", "prob") or 0.5
+                k = parse_param(problem, "k") or parse_x(problem)
+
+                steps.append(f"🔧 **Binomial distribution: B(n={n}, p={p})**")
+                steps.append(f"   PMF: P(X=k) = C(n,k) · pᵏ · (1-p)^(n-k)")
+                steps.append(f"   Mean = n·p = {n*p:.4f}")
+                steps.append(f"   Variance = n·p·(1-p) = {n*p*(1-p):.4f}")
+                steps.append(f"   Std Dev = {math.sqrt(n*p*(1-p)):.4f}")
+
+                if k is not None:
+                    k = int(k)
+                    pmf = math.comb(n, k) * (p**k) * ((1-p)**(n-k))
+                    cdf = sum(math.comb(n, j) * (p**j) * ((1-p)**(n-j)) for j in range(k+1))
+                    steps.append(f"\n   P(X = {k}) = C({n},{k}) · {p}^{k} · {1-p}^{n-k} = {pmf:.6f}")
+                    steps.append(f"   P(X ≤ {k}) = {cdf:.6f}")
+                    answer = f"P(X={k}) = {pmf:.4f},  P(X≤{k}) = {cdf:.4f}"
+                else:
+                    answer = f"B(n={n}, p={p}): Mean={n*p:.4f}, Std={math.sqrt(n*p*(1-p)):.4f}"
+
+            # ── Poisson distribution ─────────────────────────────────────
+            elif "poisson" in p_lower:
+                lam = parse_param(problem, "lambda", "rate", "lam") or 1.0
+                k = parse_param(problem, "k") or parse_x(problem)
+
+                steps.append(f"🔧 **Poisson distribution: Pois(λ={lam})**")
+                steps.append(f"   PMF: P(X=k) = λᵏ · e^(-λ) / k!")
+                steps.append(f"   Mean = λ = {lam}")
+                steps.append(f"   Variance = λ = {lam}")
+
+                if k is not None:
+                    k = int(k)
+                    pmf = (lam**k * math.exp(-lam)) / math.factorial(k)
+                    cdf = sum((lam**j * math.exp(-lam)) / math.factorial(j) for j in range(k+1))
+                    steps.append(f"\n   P(X = {k}) = {lam}^{k} · e^(-{lam}) / {k}! = {pmf:.6f}")
+                    steps.append(f"   P(X ≤ {k}) = {cdf:.6f}")
+                    answer = f"P(X={k}) = {pmf:.4f},  P(X≤{k}) = {cdf:.4f}"
+                else:
+                    answer = f"Pois(λ={lam}): Mean=Variance={lam}"
+
+            # ── Exponential distribution ─────────────────────────────────
+            elif "exponential" in p_lower:
+                lam = parse_param(problem, "lambda", "rate") or 1.0
+                x_val = parse_x(problem)
+
+                steps.append(f"🔧 **Exponential distribution: Exp(λ={lam})**")
+                steps.append(f"   PDF: f(x) = λ · e^(-λx)  for x ≥ 0")
+                steps.append(f"   Mean = 1/λ = {1/lam:.4f}")
+                steps.append(f"   Variance = 1/λ² = {1/lam**2:.4f}")
+
+                if x_val is not None:
+                    pdf_val = lam * math.exp(-lam * x_val)
+                    cdf_val = 1 - math.exp(-lam * x_val)
+                    steps.append(f"\n   P(X ≤ {x_val}) = 1 - e^(-{lam}·{x_val}) = {cdf_val:.6f}")
+                    steps.append(f"   PDF f({x_val}) = {pdf_val:.6f}")
+                    answer = f"P(X≤{x_val}) = {cdf_val:.4f},  PDF={pdf_val:.4f}"
+                else:
+                    answer = f"Exp(λ={lam}): Mean={1/lam:.4f}, Variance={1/lam**2:.4f}"
+            else:
+                raise ValueError("Specify: normal, binomial, poisson, or exponential distribution.")
+
+            steps.append(f"\n✅ **Answer:** {answer}")
+            explanation = (
+                f"Probability distribution computed. {answer}. "
+                "Use 'mean=', 'std=', 'n=', 'p=', 'lambda=' and optionally 'x=' for point probabilities."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="probability", difficulty="medium", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Formats:",
+                       "   normal distribution mean=0 std=1 x=1.96",
+                       "   binomial distribution n=10 p=0.3 k=4",
+                       "   poisson distribution lambda=5 k=3",
+                       "   exponential distribution lambda=2 x=1"],
+                explanation=str(e), problem_type="probability",
+                difficulty="unknown", confidence=0.0,
+            )
+
+    # ------------------------------------------------------------------
+    # Linear Regression
+    # ------------------------------------------------------------------
+
+    def _solve_regression(self, problem: str) -> Solution:
+        """Fit a linear regression model to data points."""
+        try:
+            import ast, math
+            import numpy as np
+            steps = []
+            steps.append(f"📝 **Original:** {problem}")
+
+            # Parse x and y arrays
+            arrays = re.findall(r'\[([^\]]+)\]', problem)
+            if len(arrays) < 2:
+                raise ValueError("Provide two lists: x=[...] y=[...]")
+
+            x_data = np.array([float(v.strip()) for v in arrays[0].split(',') if v.strip()])
+            y_data = np.array([float(v.strip()) for v in arrays[1].split(',') if v.strip()])
+
+            if len(x_data) != len(y_data):
+                raise ValueError(f"x and y must have the same length ({len(x_data)} vs {len(y_data)})")
+            if len(x_data) < 2:
+                raise ValueError("Need at least 2 data points.")
+
+            n = len(x_data)
+            steps.append(f"🔧 **Data points:** n = {n}")
+            steps.append(f"   x = {x_data.tolist()}")
+            steps.append(f"   y = {y_data.tolist()}")
+
+            # Least squares: y = mx + b
+            coeffs = np.polyfit(x_data, y_data, 1)
+            m, b = coeffs[0], coeffs[1]
+
+            # R² coefficient of determination
+            y_pred = m * x_data + b
+            ss_res = np.sum((y_data - y_pred) ** 2)
+            ss_tot = np.sum((y_data - np.mean(y_data)) ** 2)
+            r_sq = 1 - ss_res / ss_tot if ss_tot != 0 else 1.0
+            r = math.sqrt(abs(r_sq)) * (1 if m >= 0 else -1)
+
+            # Standard error
+            se = math.sqrt(ss_res / (n - 2)) if n > 2 else 0.0
+
+            steps.append(f"\n🔍 **Fitting y = mx + b using least squares...**")
+            steps.append(f"   x̄ = {np.mean(x_data):.4f},  ȳ = {np.mean(y_data):.4f}")
+            steps.append(f"   Slope m = Σ(xᵢ-x̄)(yᵢ-ȳ) / Σ(xᵢ-x̄)² = {m:.4f}")
+            steps.append(f"   Intercept b = ȳ - m·x̄ = {b:.4f}")
+            steps.append(f"\n📊 **Model quality:**")
+            steps.append(f"   R² (coefficient of determination) = {r_sq:.4f}")
+            steps.append(f"   r  (Pearson correlation)          = {r:.4f}")
+            steps.append(f"   Standard error                    = {se:.4f}")
+            steps.append(f"\n✅ **Regression line: y = {m:.4f}x + ({b:.4f})**")
+
+            # Interpretation
+            if r_sq >= 0.95:
+                fit_quality = "excellent fit (R²≥0.95)"
+            elif r_sq >= 0.80:
+                fit_quality = "good fit (R²≥0.80)"
+            elif r_sq >= 0.60:
+                fit_quality = "moderate fit (R²≥0.60)"
+            else:
+                fit_quality = "weak fit (R²<0.60) — data may not be linear"
+
+            answer = f"y = {m:.4f}x + {b:.4f}   (R² = {r_sq:.4f}, {fit_quality})"
+            steps.append(f"   Fit quality: {fit_quality}")
+
+            explanation = (
+                f"Linear regression: y = {m:.4f}x + {b:.4f}. "
+                f"Slope = {m:.4f} (y changes by {m:.4f} for each unit increase in x). "
+                f"Intercept = {b:.4f}. R² = {r_sq:.4f} — the model explains {r_sq*100:.1f}% of the variance."
+            )
+            return Solution(answer=answer, steps=steps, explanation=explanation,
+                            problem_type="regression", difficulty="medium", confidence=1.0)
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=[f"❌ Error: {str(e)}",
+                       "💡 Format:",
+                       "   regression [1,2,3,4,5] [2.1,3.9,6.2,7.8,10.1]",
+                       "   linear fit x=[1,2,3] y=[2,4,6]"],
+                explanation=str(e), problem_type="regression",
+                difficulty="unknown", confidence=0.0,
             )

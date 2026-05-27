@@ -20,6 +20,10 @@ dependencies = [
     "pillow>=10.0.0",
     "pytesseract>=0.3.10",
     "networkx>=3.1",
+    # Pin h11 to avoid conflict with mitmproxy on systems where it is installed.
+    # mitmproxy 11.x requires h11<=0.14; gradio's httpx dependency can pull in 0.16+.
+    # If you don't have mitmproxy installed you can remove this pin.
+    "h11>=0.13,<0.15",
 ]
 
 [project.optional-dependencies]

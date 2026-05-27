@@ -152,6 +152,65 @@ MATH_CATEGORIES = {
             "- Data in brackets: `[1, 2, 3, 4, 5]`"
         ),
     },
+    "Laplace & Fourier Transforms": {
+        "description": "University — Laplace transforms, inverse Laplace, Fourier transforms",
+        "examples": [
+            "laplace transform of sin(t)",
+            "laplace transform of t^2",
+            "laplace transform of exp(-2*t)*cos(t)",
+            "inverse laplace of 1/(s+2)",
+            "fourier transform of exp(-x^2)",
+        ],
+        "tips": (
+            "- Laplace: `laplace transform of f(t)`\n"
+            "- Inverse: `inverse laplace of F(s)`\n"
+            "- Fourier: `fourier transform of f(x)`\n"
+            "- Use `exp(x)` not `e^x`"
+        ),
+    },
+    "Double & Triple Integrals": {
+        "description": "Calculus 3 — Double and triple integrals over rectangular regions",
+        "examples": [
+            "double integral of x*y dx from 0 to 1 dy from 0 to 1",
+            "double integral of x^2+y^2 dx from 0 to 2 dy from 0 to 2",
+            "double integral of exp(x+y) dx from 0 to 1 dy from 0 to 1",
+            "double integral of x*y^2 dx from 0 to 3 dy from 0 to 2",
+        ],
+        "tips": (
+            "- Format: `double integral of f(x,y) dx from a to b dy from c to d`\n"
+            "- Integrates over x first, then y\n"
+            "- Bounds can be constants or expressions"
+        ),
+    },
+    "Probability Distributions": {
+        "description": "Statistics — Normal, Binomial, Poisson, Exponential distributions",
+        "examples": [
+            "normal distribution mean=0 std=1 x=1.96",
+            "binomial distribution n=10 p=0.3 k=4",
+            "poisson distribution lambda=5 k=3",
+            "exponential distribution lambda=2 x=1",
+            "normal distribution mean=100 std=15",
+        ],
+        "tips": (
+            "- Normal: `normal distribution mean=μ std=σ x=value`\n"
+            "- Binomial: `binomial distribution n=N p=p k=k`\n"
+            "- Poisson: `poisson distribution lambda=λ k=k`\n"
+            "- Omit `x=` or `k=` to get summary stats only"
+        ),
+    },
+    "Linear Regression": {
+        "description": "Statistics — Fit a line to data, compute R², slope, intercept",
+        "examples": [
+            "regression [1,2,3,4,5] [2.1,3.9,6.2,7.8,10.1]",
+            "linear fit x=[0,1,2,3,4] y=[1,3,5,7,9]",
+            "regression [10,20,30,40] [15,25,33,45]",
+        ],
+        "tips": (
+            "- Format: `regression [x values] [y values]`\n"
+            "- Returns: slope, intercept, R², Pearson r\n"
+            "- R² = 1.0 is a perfect fit"
+        ),
+    },
     "Advanced / University": {
         "description": "University+ — Cubic equations, complex expressions, number theory",
         "examples": [
@@ -255,6 +314,53 @@ def get_category_info(category: str) -> tuple:
 # ---------------------------------------------------------------------------
 
 GRAPH_COLORS = ['#2196F3', '#F44336', '#4CAF50', '#FF9800', '#9C27B0']
+
+
+def plot_3d(func_input: str, x_min: float, x_max: float,
+            y_min: float, y_max: float, plot_type: str) -> tuple:
+    """Plot a 3D surface or contour of z = f(x,y)."""
+    if not func_input or not func_input.strip():
+        return None, "Enter a function of x and y, e.g. x^2 + y^2"
+
+    try:
+        from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+
+        sym_x, sym_y = sp.Symbol('x'), sp.Symbol('y')
+        expr = solver._safe_parse(func_input.strip())
+        f_lam = sp.lambdify((sym_x, sym_y), expr, modules='numpy')
+
+        x_vals = np.linspace(x_min, x_max, 80)
+        y_vals = np.linspace(y_min, y_max, 80)
+        X, Y = np.meshgrid(x_vals, y_vals)
+
+        with np.errstate(divide='ignore', invalid='ignore'):
+            Z = np.asarray(f_lam(X, Y), dtype=float)
+            Z[np.abs(Z) > 1e6] = np.nan
+
+        fig = plt.figure(figsize=(9, 6))
+
+        if plot_type == "Contour":
+            ax = fig.add_subplot(111)
+            cs = ax.contourf(X, Y, Z, levels=30, cmap='viridis')
+            fig.colorbar(cs)
+            ax.contour(X, Y, Z, levels=30, colors='k', linewidths=0.3, alpha=0.4)
+            ax.set_xlabel('x'); ax.set_ylabel('y')
+            ax.set_title(f'z = {func_input}  (contour)')
+        else:
+            ax = fig.add_subplot(111, projection='3d')
+            if plot_type == "Wireframe":
+                ax.plot_wireframe(X, Y, Z, color='#2196F3', linewidth=0.5, alpha=0.8)
+            else:
+                ax.plot_surface(X, Y, Z, cmap='viridis', alpha=0.85, edgecolor='none')
+            ax.set_xlabel('x'); ax.set_ylabel('y'); ax.set_zlabel('z')
+            ax.set_title(f'z = {func_input}')
+
+        plt.tight_layout()
+        return fig, f"Plotted z = {func_input}"
+
+    except Exception as e:
+        return None, f"Error: {str(e)}\nMake sure you use x and y as variables, e.g. x^2 + y^2"
+
 
 def plot_functions(func_input: str, x_min: float, x_max: float,
                    show_grid: bool, dark_mode: bool) -> tuple:
@@ -525,6 +631,58 @@ def create_public_ui():
                 p3.click(lambda: "exp(x)\nexp(-x)", outputs=[graph_input])
                 p4.click(lambda: "1/x", outputs=[graph_input])
                 p5.click(lambda: "exp(-x^2)", outputs=[graph_input])
+
+                # --- 3D Graphing ---
+                gr.Markdown("---\n### 🌐 3D Graph — z = f(x, y)")
+                with gr.Row():
+                    with gr.Column(scale=2):
+                        graph3d_input = gr.Textbox(
+                            label="Function of x and y",
+                            placeholder="e.g.  x^2 + y^2",
+                            lines=2,
+                        )
+                        with gr.Row():
+                            x3d_min = gr.Number(label="x min", value=-3, precision=1)
+                            x3d_max = gr.Number(label="x max", value=3, precision=1)
+                        with gr.Row():
+                            y3d_min = gr.Number(label="y min", value=-3, precision=1)
+                            y3d_max = gr.Number(label="y max", value=3, precision=1)
+                        plot3d_type = gr.Radio(
+                            choices=["Surface", "Wireframe", "Contour"],
+                            value="Surface",
+                            label="Plot type",
+                        )
+                        graph3d_btn = gr.Button("🌐 Plot 3D", variant="primary")
+                        graph3d_status = gr.Markdown()
+
+                        gr.Markdown(
+                            "**3D Examples:**\n"
+                            "- `x^2 + y^2`  (paraboloid)\n"
+                            "- `sin(x)*cos(y)`  (wave surface)\n"
+                            "- `exp(-(x^2+y^2))`  (3D Gaussian)\n"
+                            "- `x^2 - y^2`  (saddle point)\n"
+                            "- `sin(sqrt(x^2+y^2))`  (ripple)"
+                        )
+
+                    with gr.Column(scale=3):
+                        graph3d_output = gr.Plot(label="3D Graph")
+
+                graph3d_btn.click(
+                    fn=plot_3d,
+                    inputs=[graph3d_input, x3d_min, x3d_max, y3d_min, y3d_max, plot3d_type],
+                    outputs=[graph3d_output, graph3d_status],
+                )
+
+                with gr.Row():
+                    q1 = gr.Button("Paraboloid", size="sm")
+                    q2 = gr.Button("Sine wave", size="sm")
+                    q3 = gr.Button("Gaussian", size="sm")
+                    q4 = gr.Button("Saddle", size="sm")
+
+                q1.click(lambda: "x^2 + y^2", outputs=[graph3d_input])
+                q2.click(lambda: "sin(x)*cos(y)", outputs=[graph3d_input])
+                q3.click(lambda: "exp(-(x^2+y^2))", outputs=[graph3d_input])
+                q4.click(lambda: "x^2 - y^2", outputs=[graph3d_input])
 
             # ── Tab 4: What Numen Solves ─────────────────────────────────
             with gr.Tab("📖 Capabilities"):
