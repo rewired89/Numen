@@ -550,10 +550,32 @@ input[type=text]:focus, input[type=number]:focus, textarea:focus {
 input::placeholder, textarea::placeholder {
     color: rgba(80, 130, 200, 0.38) !important;
 }
-select, .wrap .wrap-inner {
+/* ── Dropdown ── */
+.wrap, .wrap-inner, .multiselect {
     background: rgba(3, 9, 28, 0.85) !important;
     color: #d8ecff !important;
     border-color: rgba(59, 130, 246, 0.22) !important;
+}
+/* Dropdown popup list */
+ul.options, .options {
+    background: #080f28 !important;
+    border: 1px solid rgba(59, 130, 246, 0.35) !important;
+    border-radius: 8px !important;
+    z-index: 9999 !important;
+}
+ul.options li, .options .item {
+    color: #c8e0ff !important;
+    padding: 8px 14px !important;
+}
+ul.options li:hover, .options .item:hover, ul.options li.selected, .options .item.selected {
+    background: rgba(30, 80, 200, 0.25) !important;
+    color: #7ec8ff !important;
+}
+/* Dropdown arrow — keep it visible and clickable */
+.dropdown-arrow, .icon, svg {
+    color: rgba(148, 190, 255, 0.7) !important;
+    fill: rgba(148, 190, 255, 0.7) !important;
+    pointer-events: auto !important;
 }
 
 /* ── Primary button ── */
@@ -577,8 +599,8 @@ button.primary:active {
     transform: translateY(0) !important;
 }
 
-/* ── Secondary / small buttons ── */
-button:not(.primary):not(.tab-nav button) {
+/* ── Secondary / small buttons (exclude dropdown internals) ── */
+button:not(.primary):not(.tab-nav button):not([class*="dropdown"]):not([class*="arrow"]) {
     background: rgba(8, 22, 60, 0.85) !important;
     border: 1px solid rgba(59, 130, 246, 0.2) !important;
     border-radius: 7px !important;
@@ -586,7 +608,7 @@ button:not(.primary):not(.tab-nav button) {
     font-weight: 500 !important;
     transition: all 0.2s ease !important;
 }
-button:not(.primary):not(.tab-nav button):hover {
+button:not(.primary):not(.tab-nav button):not([class*="dropdown"]):not([class*="arrow"]):hover {
     border-color: rgba(59, 130, 246, 0.5) !important;
     background: rgba(12, 32, 80, 0.95) !important;
     color: #a5d4ff !important;

@@ -72,49 +72,22 @@ class SimpleOCR:
             )
 
         try:
-            # Load image
             image = self.Image.open(image_path)
-
-            # Convert to OpenCV format
             img_cv = self.cv2.cvtColor(self.np.array(image), self.cv2.COLOR_RGB2BGR)
+            processed = self._preprocess(img_cv)
 
-            # Preprocess image for better OCR
-            gray = self.cv2.cvtColor(img_cv, self.cv2.COLOR_BGR2GRAY)
+            cfg_block  = "--oem 3 --psm 6"
+            cfg_sparse = "--oem 3 --psm 11"
+            t1 = self.pytesseract.image_to_string(processed, config=cfg_block).strip()
+            t2 = self.pytesseract.image_to_string(processed, config=cfg_sparse).strip()
+            text = t1 if len(t1) >= len(t2) else t2
 
-            # Increase contrast
-            gray = self.cv2.convertScaleAbs(gray, alpha=1.5, beta=0)
-
-            # Denoise
-            denoised = self.cv2.fastNlMeansDenoising(gray)
-
-            # Threshold
-            thresh = self.cv2.adaptiveThreshold(
-                denoised, 255,
-                self.cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                self.cv2.THRESH_BINARY, 11, 2
-            )
-
-            # Extract text
-            text = self.pytesseract.image_to_string(thresh)
-
-            # Clean up the text
             cleaned = self._clean_math_text(text)
-
-            # Estimate confidence (simple heuristic)
-            confidence = 0.8 if cleaned and len(cleaned) > 0 else 0.0
-
-            return ExtractedProblem(
-                text=text.strip(),
-                confidence=confidence,
-                cleaned_text=cleaned,
-            )
+            confidence = 0.8 if cleaned else 0.0
+            return ExtractedProblem(text=text, confidence=confidence, cleaned_text=cleaned)
 
         except Exception as e:
-            return ExtractedProblem(
-                text=f"Error: {str(e)}",
-                confidence=0.0,
-                cleaned_text="",
-            )
+            return ExtractedProblem(text=f"Error: {str(e)}", confidence=0.0, cleaned_text="")
 
     def extract_from_pil_image(self, pil_image) -> Optional[ExtractedProblem]:
         """
@@ -134,36 +107,40 @@ class SimpleOCR:
             )
 
         try:
-            # Convert to OpenCV format
             img_cv = self.cv2.cvtColor(self.np.array(pil_image), self.cv2.COLOR_RGB2BGR)
+            processed = self._preprocess(img_cv)
 
-            # Preprocess
-            gray = self.cv2.cvtColor(img_cv, self.cv2.COLOR_BGR2GRAY)
-            gray = self.cv2.convertScaleAbs(gray, alpha=1.5, beta=0)
-            denoised = self.cv2.fastNlMeansDenoising(gray)
-            thresh = self.cv2.adaptiveThreshold(
-                denoised, 255,
-                self.cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                self.cv2.THRESH_BINARY, 11, 2
-            )
+            # Try multiple Tesseract PSM modes; pick the result with most content
+            cfg_block  = "--oem 3 --psm 6"
+            cfg_sparse = "--oem 3 --psm 11"
+            t1 = self.pytesseract.image_to_string(processed, config=cfg_block).strip()
+            t2 = self.pytesseract.image_to_string(processed, config=cfg_sparse).strip()
+            text = t1 if len(t1) >= len(t2) else t2
 
-            # Extract text
-            text = self.pytesseract.image_to_string(thresh)
             cleaned = self._clean_math_text(text)
-            confidence = 0.8 if cleaned and len(cleaned) > 0 else 0.0
-
-            return ExtractedProblem(
-                text=text.strip(),
-                confidence=confidence,
-                cleaned_text=cleaned,
-            )
+            confidence = 0.8 if cleaned else 0.0
+            return ExtractedProblem(text=text, confidence=confidence, cleaned_text=cleaned)
 
         except Exception as e:
-            return ExtractedProblem(
-                text=f"Error: {str(e)}",
-                confidence=0.0,
-                cleaned_text="",
-            )
+            return ExtractedProblem(text=f"Error: {str(e)}", confidence=0.0, cleaned_text="")
+
+    def _preprocess(self, img_cv):
+        """Upscale + denoise + threshold for best Tesseract accuracy on math."""
+        gray = self.cv2.cvtColor(img_cv, self.cv2.COLOR_BGR2GRAY)
+
+        # Upscale 3x — critical for superscripts and small symbols
+        h, w = gray.shape
+        gray = self.cv2.resize(gray, (w * 3, h * 3), interpolation=self.cv2.INTER_CUBIC)
+
+        # Mild contrast boost
+        gray = self.cv2.convertScaleAbs(gray, alpha=1.4, beta=10)
+
+        # Denoise
+        gray = self.cv2.fastNlMeansDenoising(gray, h=10)
+
+        # Otsu threshold works better than adaptive for math on white paper
+        _, thresh = self.cv2.threshold(gray, 0, 255, self.cv2.THRESH_BINARY + self.cv2.THRESH_OTSU)
+        return thresh
 
     def _clean_math_text(self, text: str) -> str:
         """
