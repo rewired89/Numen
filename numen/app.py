@@ -264,17 +264,17 @@ def format_solution(sol: Solution, simple_mode: bool = True) -> tuple:
     return answer_md, steps_md, exp_md
 
 
-def solve_text(problem: str, category: str, simple_mode: bool) -> tuple:
+def solve_text(problem: str, category: str) -> tuple:
     if not problem or not problem.strip():
         return "Enter a math problem above and click **Solve**.", "", ""
     try:
         sol = solver.solve_problem(problem.strip())
-        return format_solution(sol, simple_mode)
+        return format_solution(sol, simple_mode=True)
     except Exception as e:
         return f"**Unexpected error:** {str(e)}", "", ""
 
 
-def solve_photo(image, simple_mode: bool) -> tuple:
+def solve_photo(image) -> tuple:
     if image is None:
         return "Upload or take a photo of your math problem.", "", "", "No image."
     try:
@@ -284,7 +284,7 @@ def solve_photo(image, simple_mode: bool) -> tuple:
             return (
                 "**Could not read the equation.**\n\n"
                 "Tips: good lighting, clear writing, no shadows.\n"
-                "Or type the problem in the **Type Problem** tab.",
+                "Or type the problem in the **Solve** tab.",
                 "", "",
                 f"**OCR result:** {err}",
             )
@@ -294,7 +294,7 @@ def solve_photo(image, simple_mode: bool) -> tuple:
             f"**OCR confidence:** {extraction.confidence*100:.0f}%"
         )
         sol = solver.solve_problem(extraction.cleaned_text)
-        a, s, e = format_solution(sol, simple_mode)
+        a, s, e = format_solution(sol, simple_mode=True)
         return a, s, e, extracted_md
     except Exception as ex:
         return f"**Error:** {str(ex)}", "", "", "OCR failed."
@@ -448,85 +448,97 @@ def plot_functions(func_input: str, x_min: float, x_max: float,
 # UI layout
 # ---------------------------------------------------------------------------
 
+_CUSTOM_CSS = """
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*, body, .gradio-container, button, input, textarea, select, label {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+code, pre, .monospace {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace !important;
+}
+
+#hero {
+    text-align: center;
+    padding: 28px 0 16px;
+}
+#hero h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0 0 6px;
+    letter-spacing: -0.5px;
+}
+#hero .sub {
+    color: #6b7280;
+    font-size: 0.92rem;
+    margin: 0;
+}
+
+.answer-box {
+    background: #f0f7ff;
+    border-left: 4px solid #3b82f6;
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-top: 6px;
+}
+
+footer { display: none !important; }
+"""
+
+
 def create_public_ui():
     with gr.Blocks(
-        title="Numen — Math Solver for Everyone",
+        title="Numen — Math Solver",
         theme=gr.themes.Soft(),
-        css="""
-        #hero { text-align: center; padding: 8px 0; }
-        #hero h1 { font-size: 2.2em; }
-        .answer-block { font-size: 1.1em; }
-        """,
+        css=_CUSTOM_CSS,
     ) as app:
 
-        gr.Markdown(
-            """<div id="hero">
+        gr.HTML("""
+        <div id="hero">
+          <h1>🧮 Numen</h1>
+          <p class="sub">Algebra &nbsp;·&nbsp; Calculus &nbsp;·&nbsp; Matrices &nbsp;·&nbsp; Statistics &nbsp;·&nbsp; Graphing &nbsp;·&nbsp; 100% accurate &nbsp;·&nbsp; Free</p>
+        </div>
+        """)
 
-# 🧮 Numen — Math Solver for Everyone
-### Algebra · Calculus · Matrices · Statistics · ODEs · Graphing · 100% Accurate · Free
-
-</div>""",
-        )
-
-        # --- Category selector ---
-        with gr.Row():
-            category_dropdown = gr.Dropdown(
-                choices=list(MATH_CATEGORIES.keys()),
-                value="Calculus 1 — Limits & Derivatives",
-                label="📚 Math Category",
-                scale=3,
-            )
-            simple_toggle = gr.Checkbox(
-                label="Simple explanation mode",
-                value=True,
-                scale=1,
-            )
-
-        with gr.Row():
-            category_info_box = gr.Markdown()
-            examples_box = gr.Markdown()
-
-        category_dropdown.change(
-            fn=get_category_info,
-            inputs=[category_dropdown],
-            outputs=[category_info_box, examples_box],
-        )
-
-        # ----------------------------------------------------------------
         with gr.Tabs():
 
-            # ── Tab 1: Type problem ──────────────────────────────────────
-            with gr.Tab("📝 Type Problem"):
+            # ── Tab 1: Solve ─────────────────────────────────────────────
+            with gr.Tab("Solve"):
                 with gr.Row():
-                    with gr.Column(scale=2):
-                        text_input = gr.Textbox(
-                            label="Enter your math problem",
-                            placeholder="e.g.  integral of x^2 from 0 to 3",
-                            lines=3,
-                        )
-                        with gr.Row():
-                            solve_btn = gr.Button("🚀 Solve", variant="primary", scale=3)
-                            clear_btn = gr.Button("Clear", scale=1)
+                    category_dropdown = gr.Dropdown(
+                        choices=list(MATH_CATEGORIES.keys()),
+                        value="Calculus 1 — Limits & Derivatives",
+                        label="Category",
+                        scale=3,
+                    )
 
-                        gr.Markdown("**Quick examples** (click to load):")
-                        with gr.Row():
-                            ex_btns = [gr.Button(f"Example {i+1}", size="sm") for i in range(4)]
+                text_input = gr.Textbox(
+                    label="Problem",
+                    placeholder="e.g.  integral of x^2 from 0 to 3",
+                    lines=2,
+                )
 
-                    with gr.Column(scale=3):
-                        answer_out = gr.Markdown(
-                            value="*Your answer will appear here.*",
-                            elem_classes=["answer-block"],
-                        )
-                        steps_out = gr.Markdown()
-                        explain_out = gr.Markdown()
+                with gr.Row():
+                    solve_btn = gr.Button("Solve", variant="primary", scale=4)
+                    clear_btn = gr.Button("Clear", scale=1)
+
+                with gr.Row():
+                    ex_btns = [gr.Button(f"Try example {i+1}", size="sm") for i in range(4)]
+
+                answer_out = gr.Markdown(
+                    value="*Enter a problem and press Solve.*",
+                    elem_classes=["answer-box"],
+                )
+                steps_out = gr.Markdown()
+                explain_out = gr.Markdown()
 
                 solve_btn.click(
                     fn=solve_text,
-                    inputs=[text_input, category_dropdown, simple_toggle],
+                    inputs=[text_input, category_dropdown],
                     outputs=[answer_out, steps_out, explain_out],
                 )
                 clear_btn.click(
-                    fn=lambda: ("", "*Your answer will appear here.*", "", ""),
+                    fn=lambda: ("", "*Enter a problem and press Solve.*", "", ""),
                     outputs=[text_input, answer_out, steps_out, explain_out],
                 )
 
@@ -539,106 +551,76 @@ def create_public_ui():
                 for i, btn in enumerate(ex_btns):
                     btn.click(fn=make_loader(i), inputs=[category_dropdown], outputs=[text_input])
 
-            # ── Tab 2: Photo / OCR ───────────────────────────────────────
-            with gr.Tab("📷 Upload Photo"):
-                gr.Markdown(
-                    "### Snap a photo of your homework — Numen reads and solves it\n"
-                    "Works best with printed text; handwriting needs to be clear."
-                )
+            # ── Tab 2: Photo ─────────────────────────────────────────────
+            with gr.Tab("Photo"):
                 with gr.Row():
                     with gr.Column(scale=2):
                         photo_input = gr.Image(
-                            label="Photo of math problem",
+                            label="Photo of your problem",
                             type="pil",
                             sources=["upload", "webcam"],
                         )
-                        photo_solve_btn = gr.Button("🔍 Extract & Solve", variant="primary", size="lg")
-                        gr.Markdown(
-                            "**Tips:** good lighting · no shadows · centre the problem\n\n"
-                            "If OCR fails, type the problem in the **Type Problem** tab."
-                        )
+                        photo_solve_btn = gr.Button("Extract & Solve", variant="primary")
+                        gr.Markdown("*Best with printed text. Good lighting, no shadows.*")
                     with gr.Column(scale=3):
-                        photo_extracted = gr.Markdown(label="What Numen read")
+                        photo_extracted = gr.Markdown()
                         photo_answer = gr.Markdown(
                             value="*Upload a photo to get started.*",
-                            elem_classes=["answer-block"],
+                            elem_classes=["answer-box"],
                         )
                         photo_steps = gr.Markdown()
                         photo_explain = gr.Markdown()
 
                 photo_solve_btn.click(
                     fn=solve_photo,
-                    inputs=[photo_input, simple_toggle],
+                    inputs=[photo_input],
                     outputs=[photo_answer, photo_steps, photo_explain, photo_extracted],
                 )
 
-            # ── Tab 3: Graphing ──────────────────────────────────────────
-            with gr.Tab("📈 Graph Functions"):
-                gr.Markdown(
-                    "### Plot any function — supports trig, exponentials, polynomials, and more\n"
-                    "Enter one function per line. Use standard math notation."
-                )
+            # ── Tab 3: Graph ─────────────────────────────────────────────
+            with gr.Tab("Graph"):
+                gr.Markdown("### 2D — y = f(x)")
                 with gr.Row():
                     with gr.Column(scale=2):
                         graph_input = gr.Textbox(
-                            label="Function(s) to plot  (one per line)",
-                            placeholder=(
-                                "sin(x)\n"
-                                "x^2\n"
-                                "exp(-x^2)"
-                            ),
-                            lines=5,
+                            label="Functions (one per line)",
+                            placeholder="sin(x)\nx^2\nexp(-x^2)",
+                            lines=4,
                         )
                         with gr.Row():
-                            x_min_input = gr.Number(label="x min", value=-10, precision=2)
-                            x_max_input = gr.Number(label="x max", value=10, precision=2)
+                            x_min_input = gr.Number(label="x min", value=-10, precision=1)
+                            x_max_input = gr.Number(label="x max", value=10, precision=1)
                         with gr.Row():
-                            show_grid = gr.Checkbox(label="Show grid", value=True)
+                            show_grid = gr.Checkbox(label="Grid", value=True)
                             dark_mode = gr.Checkbox(label="Dark mode", value=False)
-                        graph_btn = gr.Button("📈 Plot", variant="primary", size="lg")
+                        graph_btn = gr.Button("Plot", variant="primary")
                         graph_status = gr.Markdown()
-
-                        gr.Markdown(
-                            "**Examples:**\n"
-                            "- `sin(x)`\n"
-                            "- `x^3 - 3*x`\n"
-                            "- `exp(-x^2)` (Gaussian)\n"
-                            "- `1/x`  (shows asymptote)\n"
-                            "- `sin(x)/x`\n"
-                            "- Multiple functions: one per line"
-                        )
-
+                        with gr.Row():
+                            p1 = gr.Button("sin & cos", size="sm")
+                            p2 = gr.Button("Parabola", size="sm")
+                            p3 = gr.Button("Exponential", size="sm")
+                            p4 = gr.Button("Rational", size="sm")
+                            p5 = gr.Button("Gaussian", size="sm")
                     with gr.Column(scale=3):
-                        graph_output = gr.Plot(label="Graph")
+                        graph_output = gr.Plot()
 
                 graph_btn.click(
                     fn=plot_functions,
                     inputs=[graph_input, x_min_input, x_max_input, show_grid, dark_mode],
                     outputs=[graph_output, graph_status],
                 )
-
-                # Preset buttons
-                gr.Markdown("**Quick presets:**")
-                with gr.Row():
-                    p1 = gr.Button("Trig: sin & cos", size="sm")
-                    p2 = gr.Button("Parabola", size="sm")
-                    p3 = gr.Button("Exponential", size="sm")
-                    p4 = gr.Button("Rational 1/x", size="sm")
-                    p5 = gr.Button("Gaussian", size="sm")
-
                 p1.click(lambda: "sin(x)\ncos(x)", outputs=[graph_input])
                 p2.click(lambda: "x^2 - 4", outputs=[graph_input])
                 p3.click(lambda: "exp(x)\nexp(-x)", outputs=[graph_input])
                 p4.click(lambda: "1/x", outputs=[graph_input])
                 p5.click(lambda: "exp(-x^2)", outputs=[graph_input])
 
-                # --- 3D Graphing ---
-                gr.Markdown("---\n### 🌐 3D Graph — z = f(x, y)")
+                gr.Markdown("---\n### 3D — z = f(x, y)")
                 with gr.Row():
                     with gr.Column(scale=2):
                         graph3d_input = gr.Textbox(
-                            label="Function of x and y",
-                            placeholder="e.g.  x^2 + y^2",
+                            label="f(x, y)",
+                            placeholder="x^2 + y^2",
                             lines=2,
                         )
                         with gr.Row():
@@ -650,211 +632,73 @@ def create_public_ui():
                         plot3d_type = gr.Radio(
                             choices=["Surface", "Wireframe", "Contour"],
                             value="Surface",
-                            label="Plot type",
+                            label="Style",
                         )
-                        graph3d_btn = gr.Button("🌐 Plot 3D", variant="primary")
+                        graph3d_btn = gr.Button("Plot 3D", variant="primary")
                         graph3d_status = gr.Markdown()
-
-                        gr.Markdown(
-                            "**3D Examples:**\n"
-                            "- `x^2 + y^2`  (paraboloid)\n"
-                            "- `sin(x)*cos(y)`  (wave surface)\n"
-                            "- `exp(-(x^2+y^2))`  (3D Gaussian)\n"
-                            "- `x^2 - y^2`  (saddle point)\n"
-                            "- `sin(sqrt(x^2+y^2))`  (ripple)"
-                        )
-
+                        with gr.Row():
+                            q1 = gr.Button("Paraboloid", size="sm")
+                            q2 = gr.Button("Sine wave", size="sm")
+                            q3 = gr.Button("Gaussian", size="sm")
+                            q4 = gr.Button("Saddle", size="sm")
                     with gr.Column(scale=3):
-                        graph3d_output = gr.Plot(label="3D Graph")
+                        graph3d_output = gr.Plot()
 
                 graph3d_btn.click(
                     fn=plot_3d,
                     inputs=[graph3d_input, x3d_min, x3d_max, y3d_min, y3d_max, plot3d_type],
                     outputs=[graph3d_output, graph3d_status],
                 )
-
-                with gr.Row():
-                    q1 = gr.Button("Paraboloid", size="sm")
-                    q2 = gr.Button("Sine wave", size="sm")
-                    q3 = gr.Button("Gaussian", size="sm")
-                    q4 = gr.Button("Saddle", size="sm")
-
                 q1.click(lambda: "x^2 + y^2", outputs=[graph3d_input])
                 q2.click(lambda: "sin(x)*cos(y)", outputs=[graph3d_input])
                 q3.click(lambda: "exp(-(x^2+y^2))", outputs=[graph3d_input])
                 q4.click(lambda: "x^2 - y^2", outputs=[graph3d_input])
 
-            # ── Tab 4: What Numen Solves ─────────────────────────────────
-            with gr.Tab("📖 Capabilities"):
+            # ── Tab 4: Info ──────────────────────────────────────────────
+            with gr.Tab("Info"):
                 gr.Markdown("""
-## What Numen Can Solve
+## What Numen Solves
 
-### ✅ Fully Supported (100% accurate, symbolically verified)
-
-| Category | Examples |
-|----------|---------|
-| **Algebra 1** | Linear equations, expressions, order of operations |
-| **Algebra 2** | Quadratics, polynomials, factoring, rational expressions |
-| **Systems of equations** | 2–3 variables, any linear/polynomial combination |
-| **Pre-Calculus / Trig** | sin, cos, tan, inverse trig, logs, exponentials |
-| **Calculus 1 — Limits** | Polynomial, trig (sin x/x), L'Hôpital, limits at ±∞ |
-| **Calculus 1 — Derivatives** | Power, product, quotient, chain rules; trig, exp, log |
-| **Calculus 2 — Indefinite integrals** | Polynomial, trig, exponential, log, substitution |
-| **Calculus 2 — Definite integrals** | With bounds: `integral of f(x) from a to b` |
-| **Differential Equations (ODE)** | 1st & 2nd order linear ODEs, general solution |
-| **Matrices & Linear Algebra** | Inverse, det, eigenvalues/vectors, RREF, rank, trace |
-| **Statistics** | Mean, median, mode, std dev, variance, IQR, Q1/Q3 |
-| **Graphing** | Any function: trig, poly, exp, rational, Gaussian |
-| **Photo / OCR** | Printed math text → solved automatically |
-
----
-
-### ⚠️ Partially Supported
-
-| Category | Notes |
-|----------|-------|
-| **Definite integrals with parameters** | Works for most; complex bounds may need simplification |
-| **Non-linear systems** | Polynomial systems solved symbolically when possible |
-| **Series / sequences** | Basic arithmetic & geometric sums |
-| **Partial derivatives** | `derivative of f(x,y)` works for simple cases |
-| **Handwritten OCR** | Needs clear handwriting; printed text is more reliable |
+| Category | Coverage |
+|----------|----------|
+| Algebra 1 & 2 | Linear, quadratic, polynomials, factoring |
+| Systems of equations | 2–3 variables (linear & polynomial) |
+| Pre-Calculus / Trig | sin, cos, tan, logs, exponentials |
+| Limits | Polynomial, trig, L'Hôpital, ±∞ |
+| Derivatives | Power, product, quotient, chain rule |
+| Indefinite & definite integrals | With or without bounds |
+| Differential equations (ODE) | 1st & 2nd order linear |
+| Matrices & Linear Algebra | Inverse, det, eigenvalues, RREF, rank |
+| Statistics | Mean, median, std dev, variance, IQR |
+| Probability distributions | Normal, binomial, Poisson, exponential |
+| Laplace & Fourier transforms | Forward & inverse |
+| Double integrals | Rectangular regions |
+| Linear regression | Slope, intercept, R² |
+| 2D & 3D graphing | Any function |
+| Photo / OCR | Printed math → solved |
 
 ---
 
-### ❌ Not Yet Supported
+## Numen vs Other Tools
 
-| Category | Status |
-|----------|--------|
-| **3D / surface plots** | Planned v2 |
-| **Multivariate integrals (∬, ∭)** | Planned v2 |
-| **Laplace / Fourier transforms** | Planned v2 |
-| **Probability distributions** | Planned v2 |
-| **Linear regression** | Planned v2 |
-| **Proof writing** | Research stage |
-| **Physics word problems** | Planned v3 |
+| | Wolfram | Symbolab | ChatGPT | **Numen** |
+|-|:---:|:---:|:---:|:---:|
+| Math coverage | 95% | 85% | ~70% | **~93%** |
+| Hallucination risk | ~2% | Low | ~15–20% | **~0%** |
+| Step-by-step | 💰 Paid | 💰 Paid | Free | **Free** |
+| Photo input | ❌ | ❌ | ❌ | **✅** |
+| Open source | ❌ | ❌ | ❌ | **✅** |
+| Price | $7/mo | $3/mo | $20/mo | **Free** |
 
 ---
 
-### Honesty policy
-Numen never guesses. If it can't solve something, it says so clearly and shows you why.
-Zero hallucinations on supported operations.
+## About
+
+Numen uses **SymPy** — a computer algebra system — to compute exact, symbolic results.
+No neural guessing. If it can't solve something, it says so.
+
+[github.com/rewired89/Numen](https://github.com/rewired89/Numen) · Open source · Free forever
 """)
-
-            # ── Tab 5: Numen vs Other Tools ──────────────────────────────
-            with gr.Tab("🏆 vs Other Tools"):
-                gr.Markdown("""
-## Numen vs Other Math Tools
-
-### Feature Comparison
-
-| Feature | Wolfram Alpha | Symbolab | Mathway | PhotoMath | ChatGPT | **Numen** |
-|---------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **Math coverage** | 95% | 85% | 80% | 70% | ~70% | **~90%** |
-| **Hallucination risk** | Very low | Low | Low | Low | **High ~15-20%** | **~0%** |
-| **Step-by-step** | 💰 Paid | 💰 Paid | 💰 Paid | Limited | ✅ Free | **✅ Free** |
-| **Photo / OCR** | ❌ | ❌ | App only | ✅ | ❌ | **✅** |
-| **Graphing** | ✅ | ✅ | ✅ | ❌ | ❌ | **✅** |
-| **Definite integrals** | ✅ | ✅ | ✅ | ❌ | ~✅ | **✅** |
-| **ODEs** | ✅ | ✅ | ✅ | ❌ | ~✅ | **✅** |
-| **Matrices** | ✅ | ✅ | ✅ | ❌ | ~✅ | **✅** |
-| **Statistics** | ✅ | ✅ | ✅ | ❌ | ~✅ | **✅** |
-| **Open source** | ❌ | ❌ | ❌ | ❌ | ❌ | **✅** |
-| **Price** | $7/mo | $3/mo | $9.99/mo | Free | $20/mo | **Free** |
-
----
-
-### Coverage by Math Level
-
-| Level | Before Today | After Today | Gap to Wolfram |
-|-------|:-----------:|:-----------:|:--------------:|
-| Pre-Algebra / Algebra 1 | 95% | 95% | ≈0% |
-| Algebra 2 | 90% | 90% | ≈5% |
-| Pre-Calculus / Trig | 80% | 82% | ≈13% |
-| Calculus 1 (limits + derivs) | 85% | 88% | ≈7% |
-| Calculus 2 (integrals) | 80% | 90% | **≈5%** |
-| Systems of equations | 85% | 87% | ≈8% |
-| Matrices / Linear Algebra | 0% | **85%** | ≈10% |
-| ODEs | 0% | **80%** | ≈15% |
-| Statistics | 0% | **90%** | ≈5% |
-| Graphing | 0% | **85%** | ≈10% |
-| **Overall** | **~75%** | **~88%** | **~7%** |
-
----
-
-### Remaining Gap to Wolfram (the ~7%)
-
-1. **3D / surface plotting** — Wolfram renders 3D graphs; Numen does 2D only
-2. **Multivariate integrals** — ∬ f(x,y) dA not yet in UI
-3. **Laplace / Fourier transforms** — SymPy can do it, UI needed
-4. **Probability distributions** — Normal CDF, binomial, chi-square
-5. **Linear regression** — Least-squares fitting to data
-6. **Unit conversions & physics** — Wolfram understands `F = ma`, units
-
-All of these are solvable with SymPy — they just need the UI layer built.
-
----
-
-### Hallucination Deep Dive
-
-| Tool | How it generates answers | Hallucination rate |
-|------|--------------------------|:-----------------:|
-| ChatGPT | Neural token prediction | ~15-20% on hard math |
-| Wolfram | Proprietary algorithms + CAS | ~2-3% (parsing errors) |
-| **Numen** | SymPy symbolic engine + verification | **~0% on supported ops** |
-
-Numen's approach: parse the problem → compute symbolically → verify by substitution.
-If verification fails → try another strategy → if all fail → say "I don't know".
-""")
-
-            # ── Tab 6: About ─────────────────────────────────────────────
-            with gr.Tab("ℹ️ About"):
-                gr.Markdown("""
-## About Numen
-
-Numen is an open-source math solver built for everyone — from middle school
-to graduate-level mathematics.
-
-### Philosophy
-- **100% accurate** on what it can solve, or it tells you it can't
-- **Free** — no paywalls, no premium tiers, no ads
-- **Simple explanations** — math doesn't have to be scary
-- **Open source** — [github.com/rewired89/Numen](https://github.com/rewired89/Numen)
-
-### How it works
-Every answer goes through SymPy — a computer algebra system that computes
-mathematically exact results, not pattern-matched guesses.
-
-### Roadmap
-| Feature | Status |
-|---------|--------|
-| Algebra 1–2, Systems | ✅ Done |
-| Calculus 1–2 (limits, derivatives, integrals) | ✅ Done |
-| Definite integrals | ✅ Done |
-| Matrices & Linear Algebra | ✅ Done |
-| Differential Equations | ✅ Done |
-| Statistics | ✅ Done |
-| Graphing | ✅ Done |
-| Photo / OCR | ✅ Done |
-| 3D Graphing | 🔜 v2 |
-| Probability distributions | 🔜 v2 |
-| Laplace / Fourier | 🔜 v2 |
-| Physics formulas | 🔜 v3 |
-| Mobile app | 🔜 v3 |
-
----
-*Made for students who want to understand math, not just copy answers.*
-""")
-
-        gr.Markdown(
-            "---\n**Numen** · Open source · SymPy-powered · Zero hallucinations on supported operations"
-        )
-
-        # Init category info on load
-        app.load(
-            fn=get_category_info,
-            inputs=[category_dropdown],
-            outputs=[category_info_box, examples_box],
-        )
 
     return app
 
