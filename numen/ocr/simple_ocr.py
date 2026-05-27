@@ -32,6 +32,20 @@ class SimpleOCR:
             from PIL import Image
             import cv2
             import numpy as np
+
+            # Auto-detect Tesseract on Windows if not already in PATH
+            import sys, os
+            if sys.platform == "win32":
+                candidates = [
+                    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+                    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+                    os.path.expanduser(r"~\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"),
+                ]
+                for path in candidates:
+                    if os.path.isfile(path):
+                        pytesseract.pytesseract.tesseract_cmd = path
+                        break
+
             self.pytesseract = pytesseract
             self.Image = Image
             self.cv2 = cv2
