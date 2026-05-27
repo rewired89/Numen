@@ -1,27 +1,32 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
+# System deps: tesseract for OCR, build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
     git \
-    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
+# Install Python deps first (cached layer)
 COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    sympy numpy scipy matplotlib \
+    gradio pillow pytesseract \
+    fastapi uvicorn pydantic \
+    networkx
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Copy application
+# Copy project and install
 COPY . .
+RUN pip install --no-cache-dir -e .
 
-# Install Numen
-RUN pip install -e .
+# Gradio port
+EXPOSE 7860
 
-# Expose API port
-EXPOSE 8000
-
-# Run API server
-CMD ["python", "-m", "uvicorn", "numen.api.server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Single command to start Numen
+CMD ["numen", "up", "--port", "7860", "--host", "0.0.0.0"]
