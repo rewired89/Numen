@@ -274,30 +274,33 @@ def solve_text(problem: str, category: str) -> tuple:
         return f"**Unexpected error:** {str(e)}", "", ""
 
 
-def solve_photo(image) -> tuple:
+def auto_ocr(image):
+    """Run OCR on upload and return (extracted_text, status_message)."""
     if image is None:
-        return "Upload or take a photo of your math problem.", "", "", "No image."
+        return "", ""
     try:
         extraction = ocr.extract_from_pil_image(image)
         if not extraction or extraction.confidence == 0.0:
-            err = extraction.text if extraction else "Unreadable image."
-            return (
-                "**Could not read the equation.**\n\n"
-                "Tips: good lighting, clear writing, no shadows.\n"
-                "Or type the problem in the **Solve** tab.",
-                "", "",
-                f"**OCR result:** {err}",
-            )
-        extracted_md = (
-            f"**Extracted:** `{extraction.text}`  \n"
-            f"**Cleaned:** `{extraction.cleaned_text}`  \n"
-            f"**OCR confidence:** {extraction.confidence*100:.0f}%"
+            err = extraction.text if extraction else "Could not read image."
+            return "", f"⚠ {err}"
+        status = (
+            f"Extracted at {extraction.confidence*100:.0f}% confidence — "
+            "edit anything that looks wrong, then press **Solve**."
         )
-        sol = solver.solve_problem(extraction.cleaned_text)
-        a, s, e = format_solution(sol, simple_mode=True)
-        return a, s, e, extracted_md
+        return extraction.cleaned_text, status
     except Exception as ex:
-        return f"**Error:** {str(ex)}", "", "", "OCR failed."
+        return "", f"⚠ OCR error: {str(ex)}"
+
+
+def solve_from_text(text: str) -> tuple:
+    """Solve whatever text is in the editable OCR box."""
+    if not text or not text.strip():
+        return "Fix the extracted text above and press **Solve**.", "", ""
+    try:
+        sol = solver.solve_problem(text.strip())
+        return format_solution(sol, simple_mode=True)
+    except Exception as e:
+        return f"**Error:** {str(e)}", "", ""
 
 
 def get_category_info(category: str) -> tuple:
@@ -697,6 +700,70 @@ footer { display: none !important; }
 """
 
 
+def _symbol_keyboard(target_input):
+    """Render a collapsible math symbol pad that appends to target_input."""
+
+    def ins(snippet):
+        def _fn(current):
+            return (current or "") + snippet
+        return _fn
+
+    with gr.Accordion("⌨  Math Symbols", open=False):
+        gr.Markdown("*Click a symbol to insert it into your problem.*")
+
+        gr.Markdown("**Powers & roots**")
+        with gr.Row():
+            b_sq, b_cu, b_pow, b_sqrt, b_abs = (
+                gr.Button("x²", size="sm"), gr.Button("x³", size="sm"),
+                gr.Button("xⁿ → ^", size="sm"), gr.Button("√ → sqrt(", size="sm"),
+                gr.Button("|x| → Abs(", size="sm"),
+            )
+
+        gr.Markdown("**Calculus**")
+        with gr.Row():
+            b_deriv, b_integ, b_defint, b_lim, b_ode = (
+                gr.Button("d/dx  → derivative of",        size="sm"),
+                gr.Button("∫     → integral of",           size="sm"),
+                gr.Button("∫ₐᵇ   → integral … from … to", size="sm"),
+                gr.Button("lim   → limit of … as x→",     size="sm"),
+                gr.Button("ODE   → ode",                   size="sm"),
+            )
+
+        gr.Markdown("**Constants**")
+        with gr.Row():
+            b_pi, b_e, b_inf, b_i = (
+                gr.Button("π → pi", size="sm"), gr.Button("e", size="sm"),
+                gr.Button("∞ → infinity", size="sm"), gr.Button("i", size="sm"),
+            )
+
+        gr.Markdown("**Trig & functions**")
+        with gr.Row():
+            b_sin, b_cos, b_tan, b_log, b_exp, b_ln = (
+                gr.Button("sin(", size="sm"), gr.Button("cos(", size="sm"),
+                gr.Button("tan(", size="sm"), gr.Button("log(", size="sm"),
+                gr.Button("exp(", size="sm"), gr.Button("ln(", size="sm"),
+            )
+
+        gr.Markdown("**Operators & grouping**")
+        with gr.Row():
+            b_mul, b_div, b_lp, b_rp, b_eq, b_pm = (
+                gr.Button("× → *", size="sm"), gr.Button("÷ → /", size="sm"),
+                gr.Button("(", size="sm"), gr.Button(")", size="sm"),
+                gr.Button("=", size="sm"), gr.Button("± → +-", size="sm"),
+            )
+
+        for btn, snip in [
+            (b_sq, "^2"), (b_cu, "^3"), (b_pow, "^"), (b_sqrt, "sqrt("), (b_abs, "Abs("),
+            (b_deriv, "derivative of "), (b_integ, "integral of "),
+            (b_defint, "integral of  from  to "), (b_lim, "limit of  as x->"), (b_ode, "ode "),
+            (b_pi, "pi"), (b_e, "e"), (b_inf, "infinity"), (b_i, "i"),
+            (b_sin, "sin("), (b_cos, "cos("), (b_tan, "tan("),
+            (b_log, "log("), (b_exp, "exp("), (b_ln, "ln("),
+            (b_mul, "*"), (b_div, "/"), (b_lp, "("), (b_rp, ")"), (b_eq, " = "), (b_pm, "+-"),
+        ]:
+            btn.click(fn=ins(snip), inputs=[target_input], outputs=[target_input])
+
+
 def create_public_ui():
     with gr.Blocks(
         title="Numen — Math Solver",
@@ -729,90 +796,7 @@ def create_public_ui():
                     lines=2,
                 )
 
-                # ── Symbol keyboard ──────────────────────────────────────
-                with gr.Accordion("⌨  Math Symbols", open=False):
-                    gr.Markdown(
-                        "*Click any symbol to add it to your problem.*",
-                    )
-
-                    def ins(snippet):
-                        """Return a function that appends snippet to the textbox."""
-                        def _fn(current):
-                            return (current or "") + snippet
-                        return _fn
-
-                    gr.Markdown("**Powers & roots**")
-                    with gr.Row():
-                        b_sq   = gr.Button("x²",   size="sm")
-                        b_cu   = gr.Button("x³",   size="sm")
-                        b_pow  = gr.Button("xⁿ → ^", size="sm")
-                        b_sqrt = gr.Button("√  → sqrt(", size="sm")
-                        b_abs  = gr.Button("|x| → Abs(", size="sm")
-
-                    gr.Markdown("**Calculus**")
-                    with gr.Row():
-                        b_deriv  = gr.Button("d/dx  → derivative of",       size="sm")
-                        b_integ  = gr.Button("∫     → integral of",          size="sm")
-                        b_defint = gr.Button("∫ₐᵇ   → integral … from … to", size="sm")
-                        b_lim    = gr.Button("lim   → limit of … as x→",     size="sm")
-                        b_ode    = gr.Button("ODE   → ode",                  size="sm")
-
-                    gr.Markdown("**Constants**")
-                    with gr.Row():
-                        b_pi  = gr.Button("π → pi",       size="sm")
-                        b_e   = gr.Button("e → e",         size="sm")
-                        b_inf = gr.Button("∞ → infinity",  size="sm")
-                        b_i   = gr.Button("i → i",         size="sm")
-
-                    gr.Markdown("**Trig & functions**")
-                    with gr.Row():
-                        b_sin = gr.Button("sin(", size="sm")
-                        b_cos = gr.Button("cos(", size="sm")
-                        b_tan = gr.Button("tan(", size="sm")
-                        b_log = gr.Button("log(", size="sm")
-                        b_exp = gr.Button("exp(", size="sm")
-                        b_ln  = gr.Button("ln(",  size="sm")
-
-                    gr.Markdown("**Operators & grouping**")
-                    with gr.Row():
-                        b_mul = gr.Button("×  → *", size="sm")
-                        b_div = gr.Button("÷  → /", size="sm")
-                        b_lp  = gr.Button("(",       size="sm")
-                        b_rp  = gr.Button(")",       size="sm")
-                        b_eq  = gr.Button("=",       size="sm")
-                        b_pm  = gr.Button("±  → +-", size="sm")
-
-                    # Wire every button to append its snippet
-                    _sym_map = [
-                        (b_sq,   "^2"),
-                        (b_cu,   "^3"),
-                        (b_pow,  "^"),
-                        (b_sqrt, "sqrt("),
-                        (b_abs,  "Abs("),
-                        (b_deriv,  "derivative of "),
-                        (b_integ,  "integral of "),
-                        (b_defint, "integral of  from  to "),
-                        (b_lim,    "limit of  as x->"),
-                        (b_ode,    "ode "),
-                        (b_pi,  "pi"),
-                        (b_e,   "e"),
-                        (b_inf, "infinity"),
-                        (b_i,   "i"),
-                        (b_sin, "sin("),
-                        (b_cos, "cos("),
-                        (b_tan, "tan("),
-                        (b_log, "log("),
-                        (b_exp, "exp("),
-                        (b_ln,  "ln("),
-                        (b_mul, "*"),
-                        (b_div, "/"),
-                        (b_lp,  "("),
-                        (b_rp,  ")"),
-                        (b_eq,  " = "),
-                        (b_pm,  "+-"),
-                    ]
-                    for _btn, _snip in _sym_map:
-                        _btn.click(fn=ins(_snip), inputs=[text_input], outputs=[text_input])
+                _symbol_keyboard(text_input)
 
                 # ── Solve / clear / examples ─────────────────────────────
                 with gr.Row():
@@ -857,21 +841,47 @@ def create_public_ui():
                             type="pil",
                             sources=["upload", "webcam"],
                         )
-                        photo_solve_btn = gr.Button("Extract & Solve", variant="primary")
                         gr.Markdown("*Best with printed text. Good lighting, no shadows.*")
                     with gr.Column(scale=3):
-                        photo_extracted = gr.Markdown()
-                        photo_answer = gr.Markdown(
-                            value="*Upload a photo to get started.*",
-                            elem_classes=["answer-box"],
+                        photo_status = gr.Markdown(
+                            value="*Upload a photo — text is extracted automatically.*"
                         )
-                        photo_steps = gr.Markdown()
-                        photo_explain = gr.Markdown()
+                        photo_text = gr.Textbox(
+                            label="Extracted text  (edit anything wrong)",
+                            placeholder="OCR result will appear here…",
+                            lines=3,
+                            interactive=True,
+                        )
 
-                photo_solve_btn.click(
-                    fn=solve_photo,
+                # Symbol keyboard wired to the editable OCR textbox
+                _symbol_keyboard(photo_text)
+
+                with gr.Row():
+                    photo_solve_btn = gr.Button("Solve", variant="primary", scale=4)
+                    photo_clear_btn = gr.Button("Clear", scale=1)
+
+                photo_answer = gr.Markdown(
+                    value="",
+                    elem_classes=["answer-box"],
+                )
+                photo_steps = gr.Markdown()
+                photo_explain = gr.Markdown()
+
+                # Auto-OCR as soon as an image is uploaded
+                photo_input.change(
+                    fn=auto_ocr,
                     inputs=[photo_input],
-                    outputs=[photo_answer, photo_steps, photo_explain, photo_extracted],
+                    outputs=[photo_text, photo_status],
+                )
+                photo_solve_btn.click(
+                    fn=solve_from_text,
+                    inputs=[photo_text],
+                    outputs=[photo_answer, photo_steps, photo_explain],
+                )
+                photo_clear_btn.click(
+                    fn=lambda: (None, "", "", "", "", ""),
+                    outputs=[photo_input, photo_text, photo_status,
+                             photo_answer, photo_steps, photo_explain],
                 )
 
             # ── Tab 3: Graph ─────────────────────────────────────────────
