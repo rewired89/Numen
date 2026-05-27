@@ -675,6 +675,23 @@ input[type=checkbox], input[type=radio] { accent-color: #3b82f6 !important; }
 ::-webkit-scrollbar { width: 5px; background: #04070f; }
 ::-webkit-scrollbar-thumb { background: rgba(59, 130, 246, 0.28); border-radius: 3px; }
 
+/* ── Accordion (symbol keyboard) ── */
+.accordion {
+    background: rgba(6, 14, 40, 0.7) !important;
+    border: 1px solid rgba(59, 130, 246, 0.14) !important;
+    border-radius: 10px !important;
+}
+.accordion > .label-wrap {
+    padding: 10px 14px !important;
+    cursor: pointer !important;
+}
+.accordion > .label-wrap span {
+    font-size: 0.85rem !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    color: rgba(148, 190, 255, 0.75) !important;
+}
+
 /* ── Footer ── */
 footer { display: none !important; }
 """
@@ -712,6 +729,92 @@ def create_public_ui():
                     lines=2,
                 )
 
+                # ── Symbol keyboard ──────────────────────────────────────
+                with gr.Accordion("⌨  Math Symbols", open=False):
+                    gr.Markdown(
+                        "*Click any symbol to add it to your problem.*",
+                    )
+
+                    def ins(snippet):
+                        """Return a function that appends snippet to the textbox."""
+                        def _fn(current):
+                            return (current or "") + snippet
+                        return _fn
+
+                    gr.Markdown("**Powers & roots**")
+                    with gr.Row():
+                        b_sq   = gr.Button("x²",   size="sm")
+                        b_cu   = gr.Button("x³",   size="sm")
+                        b_pow  = gr.Button("xⁿ → ^", size="sm")
+                        b_sqrt = gr.Button("√  → sqrt(", size="sm")
+                        b_abs  = gr.Button("|x| → Abs(", size="sm")
+
+                    gr.Markdown("**Calculus**")
+                    with gr.Row():
+                        b_deriv  = gr.Button("d/dx  → derivative of",       size="sm")
+                        b_integ  = gr.Button("∫     → integral of",          size="sm")
+                        b_defint = gr.Button("∫ₐᵇ   → integral … from … to", size="sm")
+                        b_lim    = gr.Button("lim   → limit of … as x→",     size="sm")
+                        b_ode    = gr.Button("ODE   → ode",                  size="sm")
+
+                    gr.Markdown("**Constants**")
+                    with gr.Row():
+                        b_pi  = gr.Button("π → pi",       size="sm")
+                        b_e   = gr.Button("e → e",         size="sm")
+                        b_inf = gr.Button("∞ → infinity",  size="sm")
+                        b_i   = gr.Button("i → i",         size="sm")
+
+                    gr.Markdown("**Trig & functions**")
+                    with gr.Row():
+                        b_sin = gr.Button("sin(", size="sm")
+                        b_cos = gr.Button("cos(", size="sm")
+                        b_tan = gr.Button("tan(", size="sm")
+                        b_log = gr.Button("log(", size="sm")
+                        b_exp = gr.Button("exp(", size="sm")
+                        b_ln  = gr.Button("ln(",  size="sm")
+
+                    gr.Markdown("**Operators & grouping**")
+                    with gr.Row():
+                        b_mul = gr.Button("×  → *", size="sm")
+                        b_div = gr.Button("÷  → /", size="sm")
+                        b_lp  = gr.Button("(",       size="sm")
+                        b_rp  = gr.Button(")",       size="sm")
+                        b_eq  = gr.Button("=",       size="sm")
+                        b_pm  = gr.Button("±  → +-", size="sm")
+
+                    # Wire every button to append its snippet
+                    _sym_map = [
+                        (b_sq,   "^2"),
+                        (b_cu,   "^3"),
+                        (b_pow,  "^"),
+                        (b_sqrt, "sqrt("),
+                        (b_abs,  "Abs("),
+                        (b_deriv,  "derivative of "),
+                        (b_integ,  "integral of "),
+                        (b_defint, "integral of  from  to "),
+                        (b_lim,    "limit of  as x->"),
+                        (b_ode,    "ode "),
+                        (b_pi,  "pi"),
+                        (b_e,   "e"),
+                        (b_inf, "infinity"),
+                        (b_i,   "i"),
+                        (b_sin, "sin("),
+                        (b_cos, "cos("),
+                        (b_tan, "tan("),
+                        (b_log, "log("),
+                        (b_exp, "exp("),
+                        (b_ln,  "ln("),
+                        (b_mul, "*"),
+                        (b_div, "/"),
+                        (b_lp,  "("),
+                        (b_rp,  ")"),
+                        (b_eq,  " = "),
+                        (b_pm,  "+-"),
+                    ]
+                    for _btn, _snip in _sym_map:
+                        _btn.click(fn=ins(_snip), inputs=[text_input], outputs=[text_input])
+
+                # ── Solve / clear / examples ─────────────────────────────
                 with gr.Row():
                     solve_btn = gr.Button("Solve", variant="primary", scale=4)
                     clear_btn = gr.Button("Clear", scale=1)
