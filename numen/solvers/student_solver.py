@@ -99,8 +99,8 @@ class StudentSolver:
         problem = re.sub(r'lim_\{([^}]+)\}', r'lim \1', problem, flags=re.IGNORECASE)
         # "x approaches" → "x ->"
         problem = re.sub(r'x\s+approaches\s+', 'x -> ', problem, flags=re.IGNORECASE)
-        # Strip trailing period
-        problem = problem.rstrip('.')
+        # Strip trailing period or question mark
+        problem = problem.rstrip('.?').strip()
         return problem
 
     def _safe_parse(self, expr_str: str) -> sp.Expr:
@@ -157,13 +157,35 @@ class StudentSolver:
     def _strip_noise_words(self, text: str) -> str:
         """Remove common English words that are not part of the math expression."""
         noise = [
+            'what is', 'what are',  # must come before single words
             'find', 'compute', 'calculate', 'evaluate',
-            'what is', 'determine', 'please', 'me',
+            'determine', 'please', 'what', 'is', 'are', 'me',
         ]
-        result = text
+        result = text.replace('?', ' ')
         for w in noise:
             result = re.sub(r'\b' + re.escape(w) + r'\b', ' ', result, flags=re.IGNORECASE)
         return re.sub(r'\s+', ' ', result).strip()
+
+    def _split_top_level_commas(self, text: str) -> List[str]:
+        """Split a string on commas that are NOT inside parentheses."""
+        parts: List[str] = []
+        depth = 0
+        current: List[str] = []
+        for c in text:
+            if c == '(':
+                depth += 1
+                current.append(c)
+            elif c == ')':
+                depth = max(0, depth - 1)
+                current.append(c)
+            elif c == ',' and depth == 0:
+                parts.append(''.join(current).strip())
+                current = []
+            else:
+                current.append(c)
+        if current:
+            parts.append(''.join(current).strip())
+        return [p for p in parts if p]
 
     def _has_top_level_separator(self, problem: str) -> bool:
         """True if 'and', comma, newline, or semicolon appears outside parentheses."""
@@ -391,8 +413,19 @@ class StudentSolver:
 
     # ---- Derivative -------------------------------------------------- #
 
+    def _extract_function_body(self, text: str) -> str:
+        """
+        If text contains a function definition like 'f(x,y,z) = expr',
+        return just the expr (the RHS). Otherwise return text unchanged.
+        """
+        # Match f(...) = ... or f = ...
+        m = re.match(r'^\s*\w+\s*(?:\([^)]*\))?\s*=\s*(.+)$', text, re.DOTALL)
+        if m:
+            return m.group(1).strip()
+        return text
+
     def _solve_derivative(self, problem: str) -> Solution:
-        """Compute the first derivative of a function."""
+        """Compute the first (partial) derivative of a scalar or vector-valued function."""
         try:
             steps = []
 
@@ -401,7 +434,7 @@ class StudentSolver:
             var_name = wrt.group(1) if wrt else 'x'
             var = symbols(var_name)
 
-            # Strip all derivative keywords
+            # Strip all derivative/noise keywords
             expr_text = problem
             expr_text = re.sub(r'\bpartial\s+derivative\b', '', expr_text, flags=re.IGNORECASE)
             expr_text = re.sub(r'\bderivative\b', '', expr_text, flags=re.IGNORECASE)
@@ -411,6 +444,37 @@ class StudentSolver:
             expr_text = re.sub(r'\bof\b', '', expr_text, flags=re.IGNORECASE)
             expr_text = self._strip_noise_words(expr_text).strip()
 
+            # If there's a function definition like f(x,y,z) = expr, take only the RHS
+            expr_text = self._extract_function_body(expr_text)
+
+            # Detect vector-valued function: find (expr1, expr2, ...) in the text
+            vec_match = re.search(r'\(([^()]+(?:,[^()]+)+)\)', expr_text)
+            is_vector = bool(vec_match and len(self._split_top_level_commas(vec_match.group(1))) > 1)
+
+            if is_vector:
+                inner = vec_match.group(1)
+                components = self._split_top_level_commas(inner)
+                steps.append(f"📝 **Vector function:** f = ({inner})")
+                steps.append(f"🔍 **Taking ∂/∂{var_name} of each component...**")
+                results = []
+                for i, comp in enumerate(components):
+                    comp_expr = self._safe_parse(comp.strip())
+                    comp_deriv = simplify(diff(comp_expr, var))
+                    steps.append(f"   Component {i+1}: ∂/∂{var_name}({comp_expr}) = {comp_deriv}")
+                    results.append(str(comp_deriv))
+                answer_vec = f"({', '.join(results)})"
+                steps.append(f"\n✅ **∂f/∂{var_name} = {answer_vec}**")
+                return Solution(
+                    answer=f"∂f/∂{var_name} = {answer_vec}",
+                    steps=steps,
+                    explanation=(
+                        f"The partial derivative of the vector function with respect to "
+                        f"{var_name} is {answer_vec}. Each component was differentiated separately."
+                    ),
+                    problem_type="derivative", difficulty="medium", confidence=1.0,
+                )
+
+            # Scalar function
             steps.append(f"📝 **Function:** f({var_name}) = {expr_text}")
             expr = self._safe_parse(expr_text)
             steps.append(f"🔧 **Parsed:** {expr}")
@@ -430,10 +494,10 @@ class StudentSolver:
 
             simplified = simplify(result)
             display = simplified if simplified != result else result
-            steps.append(f"\n✅ **f'({var_name}) = {display}**")
+            steps.append(f"\n✅ **∂f/∂{var_name} = {display}**")
 
             return Solution(
-                answer=f"f'({var_name}) = {display}",
+                answer=f"∂f/∂{var_name} = {display}",
                 steps=steps,
                 explanation=f"The derivative of {expr} with respect to {var_name} is {display}.",
                 problem_type="derivative", difficulty="medium", confidence=1.0,
@@ -443,7 +507,7 @@ class StudentSolver:
             return Solution(
                 answer=f"Could not differentiate: {str(e)}",
                 steps=["❌ Error computing derivative",
-                       "💡 Try: 'derivative of x^3 + 2x' or 'derivative of sin(x)*cos(x)'"],
+                       "💡 Try: 'derivative of x^3 + 2x'  or  '∂(x^2 + y^2)/∂y'"],
                 explanation=str(e), problem_type="derivative",
                 difficulty="unknown", confidence=0.0,
             )
