@@ -37,15 +37,22 @@ def cmd_up(args):
     print("  Press Ctrl+C to stop.\n")
 
     from numen.app import create_public_ui
+    import gradio as gr
 
     app = create_public_ui()
-    app.launch(
+
+    launch_kwargs = dict(
         server_name=args.host,
         server_port=args.port,
         share=args.share,
         show_error=True,
         quiet=False,
     )
+    # Gradio 6 moved theme to launch(); try both ways for compatibility
+    try:
+        app.launch(**launch_kwargs, theme=gr.themes.Soft())
+    except TypeError:
+        app.launch(**launch_kwargs)
 
 
 def cmd_version(_args):

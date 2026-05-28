@@ -143,34 +143,22 @@ class SimpleOCR:
         return thresh
 
     def _clean_math_text(self, text: str) -> str:
-        """
-        Clean up OCR text to make it suitable for math parsing.
-
-        Args:
-            text: Raw OCR text
-
-        Returns:
-            Cleaned text
-        """
-        # Remove extra whitespace
+        """Clean OCR output into something Numen can parse."""
+        # Collapse whitespace
         cleaned = " ".join(text.split())
 
-        # Common OCR corrections
-        corrections = {
-            "×": "*",
-            "÷": "/",
-            "—": "-",
-            "–": "-",
-            "l": "1",  # lowercase L often mistaken for 1
-        }
-
-        for old, new in corrections.items():
+        # Common OCR symbol corrections
+        for old, new in [("—", "-"), ("–", "-"), ("×", "*"), ("÷", "/")]:
             cleaned = cleaned.replace(old, new)
 
-        # Remove non-math characters (keep numbers, letters, operators, =, parentheses)
-        cleaned = re.sub(r'[^0-9a-zA-Z+\-*/=()^\s.,]', '', cleaned)
-
-        # Remove extra spaces around operators
-        cleaned = re.sub(r'\s*([+\-*/=()^])\s*', r'\1', cleaned)
+        # Strip trailing question phrases that OCR picks up from problem text.
+        # e.g. "f(x)=x^2  What is the derivative?" → keep "f(x)=x^2"
+        cleaned = re.sub(
+            r'\s+(what\s+is|find|calculate|compute|evaluate|determine|simplify'
+            r'|solve\s+for|what\s+are|how\s+do)\b.*$',
+            '',
+            cleaned,
+            flags=re.IGNORECASE,
+        )
 
         return cleaned.strip()
