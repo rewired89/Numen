@@ -225,6 +225,108 @@ MATH_CATEGORIES = {
             "- If unsolvable, Numen says so honestly"
         ),
     },
+    "Unit Conversions": {
+        "description": "Science / Engineering — Convert between any SI and imperial units",
+        "examples": [
+            "convert 100 km to miles",
+            "convert 0 Celsius to Fahrenheit",
+            "convert 72 Fahrenheit to Celsius",
+            "convert 9.8 m/s^2 to ft/s^2",
+            "convert 5 gallons to liters",
+            "convert 70 kg to pounds",
+        ],
+        "tips": (
+            "- Format: `convert VALUE UNIT to UNIT`\n"
+            "- Temperature: use `Celsius`, `Fahrenheit`, `Kelvin`\n"
+            "- Speed: `km/h`, `mph`, `m/s`\n"
+            "- Accepts singular or plural unit names"
+        ),
+    },
+    "Physics": {
+        "description": "Science — Physics constants (NIST CODATA 2022) and formula solving",
+        "examples": [
+            "speed of light",
+            "planck constant",
+            "boltzmann constant",
+            "gravitational constant",
+            "newton law",
+            "ohm law",
+            "ideal gas law",
+            "kinetic energy",
+        ],
+        "tips": (
+            "- Constants: `speed of light`, `planck`, `boltzmann`, `avogadro`\n"
+            "- Formulas: `newton law`, `ohm law`, `ideal gas law`\n"
+            "- Values from NIST CODATA 2022 (public domain)\n"
+            "- Formulas from OpenStax CC-BY textbooks"
+        ),
+    },
+    "Number Theory": {
+        "description": "Math — Primes, GCD, LCM, Euler's totient, Fibonacci, divisors",
+        "examples": [
+            "prime factorization of 360",
+            "is 97 prime",
+            "gcd of 48 and 18",
+            "lcm of 12 and 18",
+            "fibonacci 15",
+            "totient of 36",
+            "divisors of 60",
+            "next prime after 100",
+        ],
+        "tips": (
+            "- Primality: `is N prime`\n"
+            "- Factorize: `prime factorization of N`\n"
+            "- GCD / LCM: `gcd of A and B`\n"
+            "- Fibonacci: `fibonacci N`"
+        ),
+    },
+    "Combinatorics": {
+        "description": "Math — Combinations, permutations, factorials, derangements",
+        "examples": [
+            "10 choose 3",
+            "permutations of 7 things taken 3 at a time",
+            "5 factorial",
+            "derangements of 4",
+            "C(8,2)",
+            "P(6,3)",
+        ],
+        "tips": (
+            "- Combinations: `N choose R` or `C(N,R)`\n"
+            "- Permutations: `P(N,R)` or `permutations of N taken R`\n"
+            "- Factorial: `N factorial` or `N!`\n"
+            "- Derangements: `derangements of N`"
+        ),
+    },
+    "Graph Theory": {
+        "description": "CS / Math — Shortest path, MST, connectivity, Eulerian, centrality",
+        "examples": [
+            "shortest path from A to B (A,B,5),(A,C,3),(C,B,1)",
+            "is graph (A,B),(B,C),(C,A) connected",
+            "minimum spanning tree (A,B,4),(A,C,2),(B,C,1),(B,D,5),(C,D,8)",
+            "centrality (A,B),(B,C),(C,D),(D,A),(A,C)",
+        ],
+        "tips": (
+            "- Edge format: `(node1,node2)` for unweighted\n"
+            "- Weighted: `(node1,node2,weight)` e.g. `(A,B,5)`\n"
+            "- Commands: `shortest path from X to Y`, `connected`, `mst`, `centrality`\n"
+            "- Uses NetworkX (open source)"
+        ),
+    },
+    "Statistical Tests": {
+        "description": "Statistics — t-tests, chi-square, Pearson correlation, confidence intervals",
+        "examples": [
+            "t-test [2,3,4,5,6] vs [1,2,3,4,5]",
+            "pearson correlation [1,2,3,4,5] [2,4,5,4,5]",
+            "confidence interval [10,12,11,13,12,14] alpha=0.05",
+            "chi-square [10,20,30] expected [15,20,25]",
+        ],
+        "tips": (
+            "- t-test: `t-test [sample1] vs [sample2]`\n"
+            "- Correlation: `pearson correlation [x] [y]`\n"
+            "- CI: `confidence interval [data] alpha=0.05`\n"
+            "- Uses SciPy stats (open source)"
+        ),
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -665,15 +767,21 @@ def create_public_ui():
 | Systems of equations | 2–3 variables (linear & polynomial) |
 | Pre-Calculus / Trig | sin, cos, tan, logs, exponentials |
 | Limits | Polynomial, trig, L'Hôpital, ±∞ |
-| Derivatives | Power, product, quotient, chain rule |
+| Derivatives | Power, product, quotient, chain rule, partial |
 | Indefinite & definite integrals | With or without bounds |
 | Differential equations (ODE) | 1st & 2nd order linear |
 | Matrices & Linear Algebra | Inverse, det, eigenvalues, RREF, rank |
 | Statistics | Mean, median, std dev, variance, IQR |
 | Probability distributions | Normal, binomial, Poisson, exponential |
+| Statistical tests | t-test, chi-square, Pearson correlation, CI |
 | Laplace & Fourier transforms | Forward & inverse |
-| Double integrals | Rectangular regions |
+| Double & triple integrals | Rectangular regions |
 | Linear regression | Slope, intercept, R² |
+| **Unit conversions** | Any SI ↔ imperial (length, mass, temp, speed, …) |
+| **Physics** | NIST CODATA 2022 constants + OpenStax formulas |
+| **Number theory** | Primes, GCD, LCM, totient, Fibonacci, divisors |
+| **Combinatorics** | C(n,r), P(n,r), factorial, derangements |
+| **Graph theory** | Shortest path, MST, connectivity, centrality |
 | 2D & 3D graphing | Any function |
 | Photo / OCR | Printed math → solved |
 
@@ -683,21 +791,33 @@ def create_public_ui():
 
 | | Wolfram | Symbolab | ChatGPT | **Numen** |
 |-|:---:|:---:|:---:|:---:|
-| Math coverage | 95% | 85% | ~70% | **~93%** |
+| Math coverage | 95% | 85% | ~70% | **~95%** |
 | Hallucination risk | ~2% | Low | ~15–20% | **~0%** |
 | Step-by-step | 💰 Paid | 💰 Paid | Free | **Free** |
+| Unit conversions | ✅ | Partial | ❌ | **✅** |
+| Physics constants | ✅ | ❌ | ❌ | **✅** |
+| Graph theory | ✅ | ❌ | ❌ | **✅** |
 | Photo input | ❌ | ❌ | ❌ | **✅** |
 | Open source | ❌ | ❌ | ❌ | **✅** |
 | Price | $7/mo | $3/mo | $20/mo | **Free** |
 
 ---
 
-## About
+## Open Source Libraries Powering Numen
 
-Numen uses **SymPy** — a computer algebra system — to compute exact, symbolic results.
-No neural guessing. If it can't solve something, it says so.
+- **SymPy** — symbolic math engine (algebra, calculus, number theory, combinatorics)
+- **SciPy** — numerical methods, statistical tests
+- **NetworkX** — graph algorithms
+- **pint** — unit conversion with dimensional analysis
+- **NumPy / Matplotlib** — numerics and graphing
+- **pytesseract / OpenCV** — photo OCR
 
-[github.com/rewired89/Numen](https://github.com/rewired89/Numen) · Open source · Free forever
+Physics constants from **NIST CODATA 2022** (public domain).
+Physics formulas from **OpenStax** (CC-BY 4.0).
+
+No AI APIs. No guessing. 100% open source.
+
+[github.com/rewired89/Numen](https://github.com/rewired89/Numen) · Free forever
 """)
 
     return app

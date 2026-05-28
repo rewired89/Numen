@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "numen"
+version = "1.0.0"
+description = "Math solver for everyone — Algebra to Calculus, Matrices, ODEs, Statistics, Graphing"
+authors = [{ name = "rewired89", email = "sanchezleal1989@gmail.com" }]
+requires-python = ">=3.9"
+dependencies = [
+    "sympy>=1.12",
+    "numpy>=1.24.0",
+    "scipy>=1.10.0",
+    "gradio>=4.0.0",
+    "matplotlib>=3.7.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+    "pydantic>=2.0.0",
+    "pillow>=10.0.0",
+    "pytesseract>=0.3.10",
+    "networkx>=3.1",
+    # Pin h11 to avoid conflict with mitmproxy on systems where it is installed.
+    # mitmproxy 11.x requires h11<=0.14; gradio's httpx dependency can pull in 0.16+.
+    # If you don't have mitmproxy installed you can remove this pin.
+    "h11>=0.13,<0.15",
+    "pint>=0.23",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4.0", "black>=23.0.0", "mypy>=1.4.0"]
+ocr-full = ["pdf2image>=1.16.0", "opencv-python>=4.8.0"]
+training = ["torch>=2.0.0", "transformers>=4.30.0", "accelerate>=0.20.0", "datasets>=2.14.0"]
+
+[project.scripts]
+numen = "numen.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["numen*"]
