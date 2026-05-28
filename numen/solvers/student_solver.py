@@ -26,6 +26,24 @@ class Solution:
     confidence: float
 
 
+def _split_top_level(text: str) -> list:
+    """Split text on commas that are not inside parentheses/brackets."""
+    parts, depth, current = [], 0, []
+    for ch in text:
+        if ch in '([':
+            depth += 1
+        elif ch in ')]':
+            depth -= 1
+        if ch == ',' and depth == 0:
+            parts.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append(''.join(current).strip())
+    return parts
+
+
 class StudentSolver:
     """
     Solves math problems and explains the solution step-by-step.
@@ -204,7 +222,10 @@ class StudentSolver:
             " and " in problem_lower or "," in problem
         ) and any(v in problem_lower for v in ["y", "z"]):
             return "system"
-        elif "derivative" in problem_lower or "d/dx" in problem_lower or "differentiate" in problem_lower:
+        elif ("derivative" in problem_lower or "d/dx" in problem_lower
+              or "differentiate" in problem_lower or "∂" in problem
+              or "partial" in problem_lower
+              or re.search(r'd/d[a-zA-Z]', problem)):
             return "derivative"
         elif "integral" in problem_lower or "integrate" in problem_lower or "∫" in problem:
             return "integral"
@@ -339,62 +360,122 @@ class StudentSolver:
             )
 
     def _solve_derivative(self, problem: str) -> Solution:
-        """Solve a derivative problem and explain."""
+        """Solve a derivative or partial derivative problem."""
         try:
-            x = symbols('x')
             steps = []
 
-            # Extract function
-            expr_text = (problem.replace("derivative", "").replace("of", "")
-                         .replace("d/dx", "").replace("differentiate", "").strip())
-            steps.append(f"📝 **Original function:** f(x) = {expr_text}")
+            # ── 1. Determine differentiation variable ──────────────────
+            # Patterns: "with respect to y", "w.r.t. z", "∂/∂y", "d/dy"
+            var_name = 'x'  # default
+            m = re.search(
+                r'(?:with\s+respect\s+to|w\.r\.t\.?)\s+([a-zA-Z])',
+                problem, re.IGNORECASE)
+            if m:
+                var_name = m.group(1)
+            else:
+                m2 = re.search(r'[∂d]/[∂d]([a-zA-Z])', problem)
+                if m2:
+                    var_name = m2.group(1)
+                elif re.search(r'd/dy', problem, re.IGNORECASE):
+                    var_name = 'y'
+                elif re.search(r'd/dz', problem, re.IGNORECASE):
+                    var_name = 'z'
 
+            var = symbols(var_name)
+            is_partial = (var_name != 'x' or '∂' in problem or 'partial' in problem.lower())
+
+            # ── 2. Strip keywords to get the expression ────────────────
+            expr_text = problem
+            for kw in ('partial derivative', 'derivative', 'differentiate',
+                       'd/dx', 'd/dy', 'd/dz', '∂'):
+                expr_text = re.sub(re.escape(kw), '', expr_text, flags=re.IGNORECASE)
+            expr_text = re.sub(
+                r'(?:with\s+respect\s+to|w\.r\.t\.?)\s+[a-zA-Z]', '',
+                expr_text, flags=re.IGNORECASE)
+            expr_text = re.sub(r'\bof\b', '', expr_text, flags=re.IGNORECASE)
+
+            # Strip leading function definition like "f(x,y,z) ="
+            expr_text = re.sub(r'^[a-zA-Z]\s*\([^)]*\)\s*=\s*', '', expr_text.strip())
+            expr_text = expr_text.strip(' ,')
+
+            # ── 3. Detect vector-valued function: (e1, e2, e3) ─────────
+            vector_match = re.match(r'^\((.+)\)$', expr_text.strip(), re.DOTALL)
+            if vector_match and ',' in vector_match.group(1):
+                raw_inner = vector_match.group(1)
+                # Split on top-level commas only
+                components = _split_top_level(raw_inner)
+                if len(components) > 1:
+                    d_components = []
+                    comp_steps = []
+                    for comp in components:
+                        comp = comp.strip()
+                        expr_c = self._safe_parse(comp)
+                        d_c = diff(expr_c, var)
+                        d_components.append(str(d_c))
+                        comp_steps.append(
+                            f"   ∂/∂{var_name}({comp}) = **{d_c}**")
+                    answer = f"∂f/∂{var_name} = ({', '.join(d_components)})"
+                    steps.append(
+                        f"📝 **Vector function:** f = ({', '.join(components)})")
+                    steps.append(
+                        f"🔍 **Differentiating each component w.r.t. {var_name}:**")
+                    steps.extend(comp_steps)
+                    steps.append(f"\n✅ **Result:** {answer}")
+                    return Solution(
+                        answer=answer, steps=steps,
+                        explanation=(
+                            f"Partial derivative of a vector-valued function w.r.t. {var_name}. "
+                            f"Differentiate each component separately."
+                        ),
+                        problem_type="derivative", difficulty="hard", confidence=1.0,
+                    )
+
+            # ── 4. Scalar derivative ───────────────────────────────────
+            steps.append(f"📝 **Expression:** {expr_text}")
             expr = self._safe_parse(expr_text)
-            steps.append(f"🔧 **Parsed as:** {expr}")
-
-            # Compute derivative
-            steps.append(f"🔍 **Taking derivative with respect to x...**")
-            derivative = diff(expr, x)
-
-            # Explain derivative rules used
-            steps.append(f"\n📚 **Derivative rules applied:**")
+            steps.append(f"🔧 **Parsed:** {expr}")
+            steps.append(
+                f"🔍 **Taking {'∂/∂' if is_partial else 'd/d'}{var_name}...**")
+            derivative = diff(expr, var)
 
             if expr.is_polynomial():
-                steps.append(f"   • Power rule: d/dx(x^n) = n*x^(n-1)")
+                steps.append("   • Power rule applied")
             if expr.has(sp.sin, sp.cos):
-                steps.append(f"   • Trig rules: d/dx(sin x) = cos x, d/dx(cos x) = -sin x")
+                steps.append("   • Trig differentiation applied")
             if expr.has(sp.exp):
-                steps.append(f"   • Exponential rule: d/dx(e^x) = e^x")
+                steps.append("   • Chain rule on exponential applied")
             if expr.has(sp.log):
-                steps.append(f"   • Logarithm rule: d/dx(ln x) = 1/x")
+                steps.append("   • Log differentiation applied")
 
-            steps.append(f"\n✅ **Final Answer:** f'(x) = {derivative}")
-
-            # Simplify if needed
             simplified = simplify(derivative)
-            if simplified != derivative:
-                steps.append(f"📐 **Simplified:** f'(x) = {simplified}")
-
-            answer = f"f'(x) = {derivative}"
-            explanation = f"The derivative of {expr} with respect to x is {derivative}"
+            prefix = '∂f/∂' if is_partial else "f'("
+            suffix = '' if is_partial else ')'
+            answer = f"{prefix}{var_name}{suffix} = {simplified}"
+            steps.append(f"\n✅ **Result:** {answer}")
 
             return Solution(
-                answer=answer,
-                steps=steps,
-                explanation=explanation,
-                problem_type="derivative",
-                difficulty="medium",
-                confidence=1.0,
+                answer=answer, steps=steps,
+                explanation=(
+                    f"{'Partial derivative' if is_partial else 'Derivative'} of "
+                    f"{expr} with respect to {var_name} = {simplified}"
+                ),
+                problem_type="derivative", difficulty="medium", confidence=1.0,
             )
 
         except Exception as e:
             return Solution(
-                answer=f"Could not solve: {str(e)}",
-                steps=["❌ Error parsing or differentiating"],
+                answer=f"Could not differentiate: {str(e)}",
+                steps=[
+                    "❌ Could not parse the expression.",
+                    "",
+                    "**Try these formats:**",
+                    "- `derivative of x^3 + 2*x`",
+                    "- `derivative of x^2*sin(x) with respect to x`",
+                    "- `derivative of (y^2 + x*z, z*x^3, 2*x + y) with respect to y`",
+                    "- `partial derivative of x^2*y with respect to y`",
+                ],
                 explanation=str(e),
-                problem_type="derivative",
-                difficulty="unknown",
-                confidence=0.0,
+                problem_type="derivative", difficulty="unknown", confidence=0.0,
             )
 
     def _solve_integral(self, problem: str) -> Solution:
