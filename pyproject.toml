@@ -24,6 +24,7 @@ dependencies = [
     # mitmproxy 11.x requires h11<=0.14; gradio's httpx dependency can pull in 0.16+.
     # If you don't have mitmproxy installed you can remove this pin.
     "h11>=0.13,<0.15",
+    "pint>=0.23",
 ]
 
 [project.optional-dependencies]

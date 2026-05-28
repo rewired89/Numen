@@ -13,6 +13,83 @@ from sympy import symbols, solve, diff, integrate, simplify, expand, factor, lim
 from sympy.parsing.sympy_parser import parse_expr, standard_transformations, implicit_multiplication_application
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
+from sympy import binomial, factorial, gcd, lcm, fibonacci as fib_sym
+from sympy.ntheory import isprime, factorint, nextprime, prevprime, divisors
+try:
+    from sympy.functions.combinatorial.numbers import totient
+except ImportError:
+    from sympy.ntheory import totient
+
+
+# Public domain physics formulas (NIST / OpenStax CC-BY)
+_PHYSICS_FORMULAS = {
+    # Mechanics
+    'newton':        ('F = m * a',          {'F':'Force (N)', 'm':'Mass (kg)', 'a':'Acceleration (m/s²)'}),
+    'kinetic':       ('KE = m * v**2 / 2',  {'KE':'Kinetic energy (J)', 'm':'Mass (kg)', 'v':'Velocity (m/s)'}),
+    'potential':     ('PE = m * g * h',     {'PE':'Potential energy (J)', 'm':'Mass (kg)', 'g':'9.8 m/s²', 'h':'Height (m)'}),
+    'momentum':      ('p = m * v',          {'p':'Momentum (kg·m/s)', 'm':'Mass (kg)', 'v':'Velocity (m/s)'}),
+    'work':          ('W = F * d',          {'W':'Work (J)', 'F':'Force (N)', 'd':'Distance (m)'}),
+    'power_mech':    ('P = W / t',          {'P':'Power (W)', 'W':'Work (J)', 't':'Time (s)'}),
+    'velocity':      ('v = u + a * t',      {'v':'Final velocity (m/s)', 'u':'Initial velocity (m/s)', 'a':'Acceleration (m/s²)', 't':'Time (s)'}),
+    'displacement':  ('s = u*t + a*t**2/2', {'s':'Displacement (m)', 'u':'Initial velocity (m/s)', 'a':'Acceleration (m/s²)', 't':'Time (s)'}),
+    'torque':        ('tau = r * F',        {'tau':'Torque (N·m)', 'r':'Radius (m)', 'F':'Force (N)'}),
+    'centripetal':   ('F = m * v**2 / r',   {'F':'Centripetal force (N)', 'm':'Mass (kg)', 'v':'Speed (m/s)', 'r':'Radius (m)'}),
+    'gravity':       ('F = G * m1 * m2 / r**2', {'F':'Gravitational force (N)', 'G':'6.674e-11 N·m²/kg²', 'm1':'Mass 1 (kg)', 'm2':'Mass 2 (kg)', 'r':'Distance (m)'}),
+    # Thermodynamics
+    'ideal_gas':     ('P * V = n * R * T',  {'P':'Pressure (Pa)', 'V':'Volume (m³)', 'n':'Moles (mol)', 'R':'8.314 J/(mol·K)', 'T':'Temperature (K)'}),
+    'heat':          ('Q = m * c * dT',     {'Q':'Heat (J)', 'm':'Mass (kg)', 'c':'Specific heat (J/kg·K)', 'dT':'Temp change (K)'}),
+    # Electromagnetism
+    'ohm':           ('V = I * R',          {'V':'Voltage (V)', 'I':'Current (A)', 'R':'Resistance (Ω)'}),
+    'power_elec':    ('P = I * V',          {'P':'Power (W)', 'I':'Current (A)', 'V':'Voltage (V)'}),
+    'coulomb':       ('F = k * q1 * q2 / r**2', {'F':'Force (N)', 'k':'8.99e9 N·m²/C²', 'q1':'Charge 1 (C)', 'q2':'Charge 2 (C)', 'r':'Distance (m)'}),
+    'capacitance':   ('C = Q / V',          {'C':'Capacitance (F)', 'Q':'Charge (C)', 'V':'Voltage (V)'}),
+    'resistance':    ('R = rho * L / A',    {'R':'Resistance (Ω)', 'rho':'Resistivity (Ω·m)', 'L':'Length (m)', 'A':'Area (m²)'}),
+    # Waves & Optics
+    'wave':          ('v = f * lam',        {'v':'Wave speed (m/s)', 'f':'Frequency (Hz)', 'lam':'Wavelength (m)'}),
+    'photon':        ('E = h * f',          {'E':'Photon energy (J)', 'h':'6.626e-34 J·s', 'f':'Frequency (Hz)'}),
+    'snell':         ('n1 * sin(theta1) = n2 * sin(theta2)', {'n1':'Refractive index 1', 'theta1':'Angle 1 (rad)', 'n2':'Refractive index 2', 'theta2':'Angle 2 (rad)'}),
+    'thin_lens':     ('1/f = 1/do + 1/di', {'f':'Focal length (m)', 'do':'Object distance (m)', 'di':'Image distance (m)'}),
+    # Relativity
+    'mass_energy':   ('E = m * c**2',       {'E':'Energy (J)', 'm':'Mass (kg)', 'c':'3e8 m/s'}),
+}
+
+_PHYSICS_CONSTANTS = {
+    'speed of light':        ('c', '2.998 × 10⁸ m/s',     2.998e8),
+    'planck':                ('h', '6.626 × 10⁻³⁴ J·s',   6.626e-34),
+    'reduced planck':        ('ℏ', '1.055 × 10⁻³⁴ J·s',   1.055e-34),
+    'boltzmann':             ('k_B', '1.381 × 10⁻²³ J/K', 1.381e-23),
+    'avogadro':              ('N_A', '6.022 × 10²³ /mol',  6.022e23),
+    'gravitational':         ('G',  '6.674 × 10⁻¹¹ N·m²/kg²', 6.674e-11),
+    'electron mass':         ('m_e', '9.109 × 10⁻³¹ kg',  9.109e-31),
+    'proton mass':           ('m_p', '1.673 × 10⁻²⁷ kg',  1.673e-27),
+    'elementary charge':     ('e',  '1.602 × 10⁻¹⁹ C',    1.602e-19),
+    'permittivity':          ('ε₀', '8.854 × 10⁻¹² F/m',  8.854e-12),
+    'permeability':          ('μ₀', '1.257 × 10⁻⁶ H/m',   1.257e-6),
+    'stefan boltzmann':      ('σ',  '5.670 × 10⁻⁸ W/m²·K⁴', 5.670e-8),
+    'gas constant':          ('R',  '8.314 J/(mol·K)',      8.314),
+    'fine structure':        ('α',  '7.297 × 10⁻³',        7.297e-3),
+    'rydberg':               ('R∞', '1.097 × 10⁷ /m',      1.097e7),
+}
+
+
+def _split_top_level(text: str):
+    """Split text on commas that are not inside parentheses."""
+    parts, depth, current = [], 0, []
+    for ch in text:
+        if ch == '(':
+            depth += 1
+            current.append(ch)
+        elif ch == ')':
+            depth -= 1
+            current.append(ch)
+        elif ch == ',' and depth == 0:
+            parts.append(''.join(current).strip())
+            current = []
+        else:
+            current.append(ch)
+    if current:
+        parts.append(''.join(current).strip())
+    return parts
 
 
 @dataclass
@@ -24,24 +101,6 @@ class Solution:
     problem_type: str
     difficulty: str
     confidence: float
-
-
-def _split_top_level(text: str) -> list:
-    """Split text on commas that are not inside parentheses/brackets."""
-    parts, depth, current = [], 0, []
-    for ch in text:
-        if ch in '([':
-            depth += 1
-        elif ch in ')]':
-            depth -= 1
-        if ch == ',' and depth == 0:
-            parts.append(''.join(current).strip())
-            current = []
-        else:
-            current.append(ch)
-    if current:
-        parts.append(''.join(current).strip())
-    return parts
 
 
 class StudentSolver:
@@ -70,38 +129,56 @@ class StudentSolver:
 
     def _fix_notation(self, problem: str) -> str:
         """Normalize common math notations before parsing."""
-        # Unicode math symbols → Numen text commands
-        unicode_map = [
-            ('∫', 'integral of '),
-            ('∂', 'derivative of '),
-            ('∑', 'sum of '),
-            ('√', 'sqrt'),
-            ('∛', 'cbrt'),
-            ('π', 'pi'),
-            ('∞', 'infinity'),
-            ('×', '*'),
-            ('÷', '/'),
-            ('±', '+-'),
-            ('≤', '<='),
-            ('≥', '>='),
-            ('≠', '!='),
-            ('→', '->'),
-            ('—>', '->'),
-            ('·', '*'),
-            # Superscript digits
-            ('⁰', '^0'), ('¹', '^1'), ('²', '^2'), ('³', '^3'),
-            ('⁴', '^4'), ('⁵', '^5'), ('⁶', '^6'), ('⁷', '^7'),
-            ('⁸', '^8'), ('⁹', '^9'),
-            # Greek letters
-            ('α', 'alpha'), ('β', 'beta'), ('γ', 'gamma'), ('δ', 'delta'),
-            ('θ', 'theta'), ('λ', 'lambda'), ('μ', 'mu'), ('σ', 'sigma'),
-            ('φ', 'phi'), ('ω', 'omega'),
-        ]
-        for sym, replacement in unicode_map:
-            problem = problem.replace(sym, replacement)
-        # e^ → E^ (Euler's number, not variable)
+        # Unicode f-with-hook (OCR often reads italic f as ƒ)
+        problem = problem.replace('ƒ', 'f')
+        # Unicode superscripts / operators
+        for old, new in [('²', '^2'), ('³', '^3'), ('×', '*'), ('÷', '/'),
+                         ('π', 'pi'), ('∞', 'infinity'), ('±', '+-'),
+                         ('≤', '<='), ('≥', '>='), ('≠', '!=')]:
+            problem = problem.replace(old, new)
+        # Greek letters OCR picks up
+        for old, new in [('α', 'alpha'), ('β', 'beta'), ('γ', 'gamma'),
+                         ('θ', 'theta'), ('λ', 'lambda'), ('μ', 'mu'),
+                         ('σ', 'sigma'), ('ω', 'omega'), ('Δ', 'Delta')]:
+            problem = problem.replace(old, new)
+        # e^ → E^ (Euler's number vs variable)
         problem = re.sub(r'\be\^', 'E^', problem)
         problem = re.sub(r'\be\*\*', 'E**', problem)
+        # Arrow normalisations
+        problem = problem.replace('→', '->').replace('—>', '->')
+
+        # ── Convert OCR-style derivative questions to solver format ───────
+        # Pattern: "f(x,y,z) = EXPR  What is ∂f/∂VAR?" or "find ∂f/∂VAR"
+        # → "derivative of EXPR with respect to VAR"
+        m = re.search(
+            r'(?:f\s*\([^)]+\)\s*=\s*)(.+?)\s*'  # f(x,y,z) = EXPR
+            r'(?:what\s+is\s+|find\s+|compute\s+)?'  # optional question verb
+            r'[∂d][a-zA-Zf]?[/\\][∂d]([a-zA-Z])',  # ∂f/∂VAR or d/dVAR
+            problem, re.IGNORECASE,
+        )
+        if m:
+            expr_part = m.group(1).strip().rstrip(',')
+            var = m.group(2)
+            return f"derivative of {expr_part} with respect to {var}"
+
+        # Convert bare "∂f/∂VAR" or "∂/∂VAR" near an expression to standard form
+        # e.g. "∂/∂y (y^2 + xz)" → "derivative of (y^2 + xz) with respect to y"
+        m2 = re.search(r'[∂][a-zA-Zf]?[/\\][∂]([a-zA-Z])\s*(.+)', problem)
+        if m2:
+            var = m2.group(1)
+            expr_part = m2.group(2).strip().rstrip('?').strip()
+            return f"derivative of {expr_part} with respect to {var}"
+
+        # Strip trailing "What is …?", "Find …" phrases that OCR picks up.
+        # Only strip if there is no ∂ or derivative keyword in the phrase
+        # (those cases are handled above).
+        problem = re.sub(
+            r'\s+(what\s+is|find|calculate|compute|evaluate|determine'
+            r'|simplify|solve\s+for|what\s+are|how\s+do)\b.*$',
+            '',
+            problem,
+            flags=re.IGNORECASE,
+        ).strip()
         return problem
 
     def _safe_parse(self, expr_str: str) -> sp.Expr:
@@ -130,8 +207,6 @@ class StudentSolver:
         # Solve based on type
         if problem_type == "limit":
             return self._solve_limit(problem)
-        elif problem_type == "definite_integral":
-            return self._solve_definite_integral(problem)
         elif problem_type == "system":
             return self._solve_system(problem)
         elif problem_type == "ode":
@@ -152,6 +227,20 @@ class StudentSolver:
             return self._solve_probability(problem)
         elif problem_type == "regression":
             return self._solve_regression(problem)
+        elif problem_type == "definite_integral":
+            return self._solve_definite_integral(problem)
+        elif problem_type == "units":
+            return self._solve_units(problem)
+        elif problem_type == "physics":
+            return self._solve_physics(problem)
+        elif problem_type == "number_theory":
+            return self._solve_number_theory(problem)
+        elif problem_type == "combinatorics":
+            return self._solve_combinatorics(problem)
+        elif problem_type == "graph":
+            return self._solve_graph(problem)
+        elif problem_type == "stats_test":
+            return self._solve_stats_test(problem)
         elif problem_type == "equation":
             return self._solve_equation(problem)
         elif problem_type == "derivative":
@@ -165,6 +254,7 @@ class StudentSolver:
         elif problem_type == "factor":
             return self._solve_factor(problem)
         else:
+            # Try as equation by default
             return self._solve_equation(problem)
 
     def _detect_problem_type(self, problem: str) -> str:
@@ -200,6 +290,11 @@ class StudentSolver:
             " from " in problem_lower and " to " in problem_lower
         ):
             return "definite_integral"
+        elif ("derivative" in problem_lower or "d/dx" in problem_lower
+              or "differentiate" in problem_lower or "∂" in problem
+              or "partial" in problem_lower
+              or re.search(r'\bd/d[a-zA-Z]\b', problem)):
+            return "derivative"
         elif any(k in problem_lower for k in ("y''", "y'", "dy/dx", "d2y/dx2")) or (
             problem_lower.startswith("ode ")
         ):
@@ -222,11 +317,43 @@ class StudentSolver:
             " and " in problem_lower or "," in problem
         ) and any(v in problem_lower for v in ["y", "z"]):
             return "system"
-        elif ("derivative" in problem_lower or "d/dx" in problem_lower
-              or "differentiate" in problem_lower or "∂" in problem
-              or "partial" in problem_lower
-              or re.search(r'd/d[a-zA-Z]', problem)):
-            return "derivative"
+        elif any(k in problem_lower for k in (
+            'convert ', 'celsius', 'fahrenheit', 'kilogram', 'pounds',
+            'miles', 'kilometer', 'feet', 'meters', 'gallons', 'liters',
+        )) and re.search(r'\d', problem) and '=' not in problem:
+            return "units"
+        elif re.search(r'\bconvert\b', problem_lower) and re.search(r'\d', problem) and '=' not in problem:
+            return "units"
+        elif any(k in problem_lower for k in (
+            'speed of light', 'planck', 'boltzmann', 'avogadro', 'gravitational constant',
+            'electron mass', 'elementary charge', 'f = m', 'f=m', 'v = i', 'pv = n',
+            'e = m', 'kinetic energy', 'potential energy', 'ohm', 'coulomb law',
+            'snell', 'thin lens', 'photon', 'ideal gas', 'momentum =',
+        )):
+            return "physics"
+        elif any(k in problem_lower for k in (
+            'choose', 'combination', 'permut', 'factorial', 'c(', 'p(',
+            'ncr', 'npr', 'derangement',
+        )) or '!' in problem:
+            return "combinatorics"
+        elif any(k in problem_lower for k in (
+            'prime factor', 'prime factori', 'factori', 'is prime', 'gcd', 'lcm', 'totient',
+            'divisors', 'fibonacci', 'next prime', 'greatest common divisor',
+            'least common multiple',
+        )) or ('prime' in problem_lower and re.search(r'\d', problem)):
+            return "number_theory"
+        elif any(k in problem_lower for k in (
+            'shortest path', 'minimum spanning tree', 'mst', 'eulerian circuit',
+            'eulerian path', 'graph connectivity', 'node centrality',
+        )) or ('graph' in problem_lower and any(k in problem_lower for k in (
+            'vertex', 'edge', 'node', 'path', 'connected', 'centrality',
+        ))):
+            return "graph"
+        elif any(k in problem_lower for k in (
+            't-test', 'ttest', 'chi-square', 'chi square', 'confidence interval',
+            'pearson correlation', 'hypothesis',
+        )):
+            return "stats_test"
         elif "integral" in problem_lower or "integrate" in problem_lower or "∫" in problem:
             return "integral"
         elif "simplify" in problem_lower:
@@ -365,7 +492,6 @@ class StudentSolver:
             steps = []
 
             # ── 1. Determine differentiation variable ──────────────────
-            # Patterns: "with respect to y", "w.r.t. z", "∂/∂y", "d/dy"
             var_name = 'x'  # default
             m = re.search(
                 r'(?:with\s+respect\s+to|w\.r\.t\.?)\s+([a-zA-Z])',
@@ -402,7 +528,6 @@ class StudentSolver:
             vector_match = re.match(r'^\((.+)\)$', expr_text.strip(), re.DOTALL)
             if vector_match and ',' in vector_match.group(1):
                 raw_inner = vector_match.group(1)
-                # Split on top-level commas only
                 components = _split_top_level(raw_inner)
                 if len(components) > 1:
                     d_components = []
@@ -476,6 +601,587 @@ class StudentSolver:
                 ],
                 explanation=str(e),
                 problem_type="derivative", difficulty="unknown", confidence=0.0,
+            )
+
+    def _solve_units(self, problem: str) -> Solution:
+        """Unit conversion using pint."""
+        steps = []
+        try:
+            import pint
+            ureg = pint.UnitRegistry()
+
+            m = re.search(
+                r'([\d,]+\.?\d*)\s*([a-zA-Z°_/²³·]+(?:\s*per\s*[a-zA-Z]+)?)\s+'
+                r'(?:to|in|into|as)\s+([a-zA-Z°_/²³·]+(?:\s*per\s*[a-zA-Z]+)?)',
+                problem, re.IGNORECASE)
+            if not m:
+                # Try "X km/h to mph" pattern
+                m = re.search(
+                    r'convert\s+([\d,]+\.?\d*)\s*([^\s]+)\s+(?:to|into)\s+([^\s]+)',
+                    problem, re.IGNORECASE)
+
+            if not m:
+                raise ValueError(
+                    "Format: 'convert VALUE UNIT to UNIT'  e.g. 'convert 100 km to miles'")
+
+            value = float(m.group(1).replace(',', ''))
+            from_unit = m.group(2).strip()
+            to_unit   = m.group(3).strip()
+
+            # Common aliases pint doesn't know
+            aliases = {
+                'kmh': 'km/hour', 'kph': 'km/hour', 'mph': 'mile/hour',
+                'c':   'degC',    'f':   'degF',     'k':   'kelvin',
+                'lbs': 'pound',   'lb':  'pound',    'oz':  'ounce',
+                'ft':  'foot',    'in':  'inch',     'yd':  'yard',
+                'mi':  'mile',
+                'celsius': 'degC', 'fahrenheit': 'degF', 'kelvin': 'kelvin',
+                'rankine': 'rankine',
+                'gram': 'gram', 'grams': 'gram', 'kilogram': 'kilogram',
+                'kilograms': 'kilogram', 'pound': 'pound', 'pounds': 'pound',
+                'meter': 'meter', 'meters': 'meter', 'kilometre': 'kilometer',
+                'kilometre': 'kilometer', 'foot': 'foot', 'feet': 'foot',
+                'inch': 'inch', 'inches': 'inch', 'mile': 'mile', 'miles': 'mile',
+                'litre': 'liter', 'litres': 'liter', 'gallon': 'gallon',
+                'gallons': 'gallon',
+            }
+            from_unit = aliases.get(from_unit.lower(), from_unit)
+            to_unit   = aliases.get(to_unit.lower(), to_unit)
+
+            # Offset units (temperature) need Quantity constructor, not multiplication
+            if from_unit in ('degC', 'degF', 'rankine'):
+                quantity = ureg.Quantity(value, from_unit)
+            else:
+                quantity = value * ureg(from_unit)
+            result   = quantity.to(to_unit)
+
+            steps.append(f"📐 **Converting:** {value} {from_unit} → {to_unit}")
+            steps.append(f"✅ **Result:** {result:.6g}")
+
+            return Solution(
+                answer=f"{value} {from_unit} = {result:.6g}",
+                steps=steps,
+                explanation=f"Unit conversion using dimensional analysis (pint library).",
+                problem_type="units", difficulty="easy", confidence=1.0,
+            )
+
+        except ImportError:
+            return Solution(
+                answer="Install pint: pip install pint",
+                steps=["pint library not installed"],
+                explanation="Run: pip install pint",
+                problem_type="units", difficulty="easy", confidence=0.0,
+            )
+        except Exception as e:
+            return Solution(
+                answer=f"Could not convert: {str(e)}",
+                steps=[f"Error: {str(e)}", "",
+                       "**Examples:**",
+                       "- `convert 100 km to miles`",
+                       "- `convert 72 fahrenheit to celsius`",
+                       "- `convert 9.8 m/s^2 to ft/s^2`"],
+                explanation=str(e),
+                problem_type="units", difficulty="easy", confidence=0.0,
+            )
+
+    def _solve_physics(self, problem: str) -> Solution:
+        """Physics constants lookup and formula solver."""
+        steps = []
+        problem_lower = problem.lower()
+
+        # ── Constants lookup ──
+        for name, (sym, val_str, val_num) in _PHYSICS_CONSTANTS.items():
+            if name in problem_lower:
+                steps.append(f"📚 **{name.title()}** ({sym})")
+                steps.append(f"✅ **Value:** {val_str}")
+                return Solution(
+                    answer=f"{sym} = {val_str}",
+                    steps=steps,
+                    explanation=f"NIST CODATA 2022 value for {name}.",
+                    problem_type="physics", difficulty="easy", confidence=1.0,
+                )
+
+        # ── Formula solver ──
+        # Find which formula matches keywords in the problem
+        matched = None
+        for key, (formula_str, var_desc) in _PHYSICS_FORMULAS.items():
+            if key.replace('_', ' ') in problem_lower or any(
+                v.lower() in problem_lower for v in var_desc.keys()
+                if v not in ('G', 'R', 'k', 'h', 'c', 'e', 'g')  # skip generic 1-letter
+            ):
+                matched = (key, formula_str, var_desc)
+                break
+
+        if not matched:
+            # Try to match by formula name keyword
+            kw_map = {
+                'ohm': 'ohm', "newton": 'newton', 'kinetic': 'kinetic',
+                'potential': 'potential', 'ideal gas': 'ideal_gas',
+                'wave': 'wave', 'photon': 'photon', 'momentum': 'momentum',
+                'power': 'power_elec', 'work': 'work',
+                'displacement': 'displacement', 'velocity': 'velocity',
+                'heat': 'heat', 'snell': 'snell', 'lens': 'thin_lens',
+                'coulomb': 'coulomb', 'gravity': 'gravity',
+                'e=mc': 'mass_energy', 'mass energy': 'mass_energy',
+                'centripetal': 'centripetal', 'torque': 'torque',
+            }
+            for kw, fkey in kw_map.items():
+                if kw in problem_lower:
+                    formula_str, var_desc = _PHYSICS_FORMULAS[fkey]
+                    matched = (fkey, formula_str, var_desc)
+                    break
+
+        if not matched:
+            return Solution(
+                answer="Could not identify physics formula.",
+                steps=["**Available formulas:**",
+                       "- Mechanics: F=ma, KE, PE, momentum, work, velocity, displacement, torque, centripetal",
+                       "- Thermodynamics: ideal gas (PV=nRT), heat (Q=mcΔT)",
+                       "- Electromagnetism: Ohm's law (V=IR), power, Coulomb's law, capacitance",
+                       "- Waves: v=fλ, E=hf, Snell's law, thin lens",
+                       "- Relativity: E=mc²",
+                       "- Constants: speed of light, Planck, Boltzmann, Avogadro, G, electron mass, ..."],
+                explanation="Type the formula name or variable names.",
+                problem_type="physics", difficulty="medium", confidence=0.0,
+            )
+
+        key, formula_str, var_desc = matched
+        steps.append(f"📐 **Formula:** {formula_str}")
+        steps.append("**Variables:**")
+        for v, desc in var_desc.items():
+            steps.append(f"   {v} = {desc}")
+
+        # Extract known values from problem: "m=5", "v = 10", etc.
+        known = {}
+        for v in var_desc:
+            pat = re.search(rf'\b{re.escape(v)}\s*=\s*([\d.e+\-]+)', problem, re.IGNORECASE)
+            if pat:
+                known[v] = float(pat.group(1))
+
+        if not known:
+            return Solution(
+                answer=f"Formula: {formula_str}",
+                steps=steps + ["Provide variable values, e.g.: m=5 a=9.8"],
+                explanation=f"Formula: {formula_str}. Supply values for all but one variable.",
+                problem_type="physics", difficulty="medium", confidence=0.8,
+            )
+
+        # Parse formula and solve for unknown
+        try:
+            all_vars = {v: sp.Symbol(v) for v in var_desc}
+            lhs_str, rhs_str = formula_str.split('=', 1)
+            lhs = parse_expr(lhs_str.strip(), local_dict=all_vars,
+                             transformations=self.transformations)
+            rhs = parse_expr(rhs_str.strip(), local_dict=all_vars,
+                             transformations=self.transformations)
+            equation = sp.Eq(lhs, rhs)
+
+            # Substitute known values
+            for v, val in known.items():
+                equation = equation.subs(all_vars[v], val)
+                steps.append(f"   {v} = {val}")
+
+            unknowns = [all_vars[v] for v in var_desc if v not in known]
+            if not unknowns:
+                # All known — just verify
+                result = "All values provided — equation verified."
+            else:
+                solutions = sp.solve(equation, unknowns[0])
+                if not solutions:
+                    result = "No solution found."
+                else:
+                    sol_val = float(solutions[0]) if solutions[0].is_number else solutions[0]
+                    result = f"{unknowns[0]} = {sol_val:.6g}" if isinstance(sol_val, float) else f"{unknowns[0]} = {sol_val}"
+
+            steps.append(f"\n✅ **Result:** {result}")
+            return Solution(
+                answer=result, steps=steps,
+                explanation=f"Applied {formula_str}, substituted known values, solved symbolically.",
+                problem_type="physics", difficulty="medium", confidence=1.0,
+            )
+        except Exception as e:
+            steps.append(f"\n⚠ Could not solve symbolically: {e}")
+            return Solution(
+                answer=f"Formula: {formula_str}",
+                steps=steps,
+                explanation=str(e),
+                problem_type="physics", difficulty="medium", confidence=0.5,
+            )
+
+    def _solve_number_theory(self, problem: str) -> Solution:
+        """Number theory: primes, factorization, GCD, LCM, totient, Fibonacci."""
+        steps = []
+        problem_lower = problem.lower()
+
+        def extract_ints(text):
+            return [int(x) for x in re.findall(r'\d+', text)]
+
+        try:
+            nums = extract_ints(problem)
+
+            # Prime factorization
+            if any(k in problem_lower for k in ('factor', 'factori', 'prime factor')):
+                if not nums:
+                    raise ValueError("Provide a number to factorize.")
+                n = nums[0]
+                factors = factorint(n)
+                factor_str = ' × '.join(
+                    f"{p}^{e}" if e > 1 else str(p)
+                    for p, e in sorted(factors.items()))
+                steps.append(f"📝 **Factorizing:** {n}")
+                steps.append(f"✅ **Prime factorization:** {n} = {factor_str}")
+                answer = f"{n} = {factor_str}"
+
+            # Is prime
+            elif 'is' in problem_lower and 'prime' in problem_lower:
+                if not nums:
+                    raise ValueError("Provide a number.")
+                n = nums[0]
+                result = isprime(n)
+                steps.append(f"📝 **Testing primality:** {n}")
+                steps.append(f"✅ **{n} is {'prime' if result else 'not prime (composite)'}**")
+                if not result:
+                    steps.append(f"   Factors: {factorint(n)}")
+                answer = f"{n} is {'prime' if result else 'NOT prime'}"
+
+            # Next / previous prime
+            elif 'next prime' in problem_lower:
+                n = nums[0] if nums else 0
+                np_ = nextprime(n)
+                answer = f"Next prime after {n} = {np_}"
+                steps.append(f"✅ {answer}")
+            elif 'prev' in problem_lower and 'prime' in problem_lower:
+                n = nums[0] if nums else 2
+                pp = prevprime(n)
+                answer = f"Previous prime before {n} = {pp}"
+                steps.append(f"✅ {answer}")
+
+            # GCD
+            elif 'gcd' in problem_lower or 'greatest common' in problem_lower:
+                if len(nums) < 2:
+                    raise ValueError("Provide at least two numbers.")
+                result = int(gcd(*nums))
+                steps.append(f"✅ **GCD({', '.join(map(str,nums))}) = {result}**")
+                answer = f"GCD = {result}"
+
+            # LCM
+            elif 'lcm' in problem_lower or 'least common' in problem_lower:
+                if len(nums) < 2:
+                    raise ValueError("Provide at least two numbers.")
+                result = int(lcm(*nums))
+                steps.append(f"✅ **LCM({', '.join(map(str,nums))}) = {result}**")
+                answer = f"LCM = {result}"
+
+            # Totient
+            elif "totient" in problem_lower or "euler" in problem_lower:
+                if not nums:
+                    raise ValueError("Provide a number.")
+                n = nums[0]
+                result = int(totient(n))
+                steps.append(f"✅ **φ({n}) = {result}**")
+                steps.append(f"   (Count of integers 1..{n} coprime to {n})")
+                answer = f"φ({n}) = {result}"
+
+            # Divisors
+            elif 'divisor' in problem_lower:
+                n = nums[0]
+                divs = sorted(divisors(n))
+                steps.append(f"✅ **Divisors of {n}:** {divs}")
+                answer = f"Divisors of {n} = {divs}"
+
+            # Fibonacci
+            elif 'fibonacci' in problem_lower or 'fib' in problem_lower:
+                n = nums[0] if nums else 10
+                seq = [int(fib_sym(i)) for i in range(n+1)]
+                steps.append(f"✅ **First {n+1} Fibonacci numbers:** {seq}")
+                answer = f"F({n}) = {seq[-1]}"
+
+            else:
+                raise ValueError("Unknown number theory operation.")
+
+            return Solution(
+                answer=answer, steps=steps,
+                explanation="Computed using SymPy number theory (sympy.ntheory).",
+                problem_type="number_theory", difficulty="medium", confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=["**Examples:**",
+                       "- `prime factorization of 360`",
+                       "- `is 97 prime?`",
+                       "- `gcd of 48 and 18`",
+                       "- `lcm of 12 and 18`",
+                       "- `totient of 12`",
+                       "- `divisors of 60`",
+                       "- `fibonacci 10`"],
+                explanation=str(e),
+                problem_type="number_theory", difficulty="medium", confidence=0.0,
+            )
+
+    def _solve_combinatorics(self, problem: str) -> Solution:
+        """Combinations, permutations, factorial."""
+        steps = []
+        problem_lower = problem.lower()
+
+        try:
+            nums = [int(x) for x in re.findall(r'\d+', problem)]
+
+            # nCr / choose
+            if any(k in problem_lower for k in ('choose', 'combination', 'c(', 'ncr')):
+                if len(nums) < 2:
+                    raise ValueError("Need two numbers: C(n, r)")
+                n, r = nums[0], nums[1]
+                result = int(binomial(n, r))
+                steps.append(f"📝 **C({n}, {r}) = {n}! / ({r}! × {n-r}!)**")
+                steps.append(f"✅ **Answer: {result}**")
+                answer = f"C({n},{r}) = {result}"
+
+            # nPr / permutations
+            elif any(k in problem_lower for k in ('permut', 'p(', 'npr', 'arrange')):
+                if len(nums) < 2:
+                    raise ValueError("Need two numbers: P(n, r)")
+                n, r = nums[0], nums[1]
+                result = int(factorial(n) / factorial(n - r))
+                steps.append(f"📝 **P({n}, {r}) = {n}! / ({n-r}!)**")
+                steps.append(f"✅ **Answer: {result}**")
+                answer = f"P({n},{r}) = {result}"
+
+            # Factorial
+            elif 'factorial' in problem_lower or '!' in problem:
+                n = nums[0] if nums else 0
+                result = int(factorial(n))
+                steps.append(f"✅ **{n}! = {result}**")
+                answer = f"{n}! = {result}"
+
+            # Derangements
+            elif 'derangement' in problem_lower:
+                n = nums[0]
+                from sympy.functions.combinatorial.numbers import subfactorial
+                result = int(subfactorial(n))
+                steps.append(f"✅ **D({n}) = {result}**")
+                answer = f"Derangements of {n} items = {result}"
+
+            else:
+                raise ValueError("Unknown combinatorics operation.")
+
+            return Solution(
+                answer=answer, steps=steps,
+                explanation="Computed using SymPy combinatorics.",
+                problem_type="combinatorics", difficulty="medium", confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=["**Examples:**",
+                       "- `10 choose 3` → C(10,3) = 120",
+                       "- `permutations P(8, 3)`",
+                       "- `factorial 15`",
+                       "- `derangements of 4`"],
+                explanation=str(e),
+                problem_type="combinatorics", difficulty="medium", confidence=0.0,
+            )
+
+    def _solve_graph(self, problem: str) -> Solution:
+        """Graph theory using NetworkX."""
+        import networkx as nx
+        steps = []
+        problem_lower = problem.lower()
+
+        try:
+            # Try weighted edges first: (u,v,weight)
+            weighted = re.findall(r'\((\w+)\s*,\s*(\w+)\s*,\s*([\d.]+)\)', problem)
+            # Unweighted edges: (u,v)
+            unweighted = re.findall(r'\((\w+)\s*,\s*(\w+)\)', problem)
+            # Remove pairs that are actually weighted (avoid double-counting)
+            if weighted:
+                weighted_pairs = {(u, v) for u, v, _ in weighted}
+                unweighted = [(u, v) for u, v in unweighted if (u, v) not in weighted_pairs]
+
+            if not weighted and not unweighted:
+                raise ValueError(
+                    "Provide edges as [(node1,node2), ...] or [(node1,node2,weight), ...]\n"
+                    "Examples:\n"
+                    "  shortest path from A to B (A,B,5),(A,C,3),(C,B,1)\n"
+                    "  connected graph (A,B),(B,C),(C,A)")
+
+            G = nx.Graph()
+            for u, v, w in weighted:
+                G.add_edge(u, v, weight=float(w))
+            for u, v in unweighted:
+                G.add_edge(u, v)
+
+            steps.append(f"📐 **Graph:** {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
+
+            # Shortest path
+            if 'shortest path' in problem_lower:
+                node_candidates = re.findall(r'\bfrom\s+(\w+)\s+to\s+(\w+)', problem, re.I)
+                if node_candidates:
+                    src, dst = node_candidates[0]
+                    use_weight = 'weight' if weighted else None
+                    path = nx.shortest_path(G, src, dst, weight=use_weight)
+                    length = nx.shortest_path_length(G, src, dst, weight=use_weight)
+                    label = "cost" if use_weight else "hops"
+                    answer = f"Shortest path {src}→{dst}: {' → '.join(path)} ({label}: {length})"
+                    steps.append(f"✅ {answer}")
+                else:
+                    raise ValueError("Specify 'from NODE to NODE'")
+
+            # MST
+            elif any(k in problem_lower for k in ('minimum spanning', 'mst')):
+                T = nx.minimum_spanning_tree(G)
+                edges = list(T.edges())
+                answer = f"MST edges: {edges}  (total {T.number_of_edges()} edges)"
+                steps.append(f"✅ {answer}")
+
+            # Connected
+            elif 'connected' in problem_lower:
+                conn = nx.is_connected(G)
+                answer = f"Graph is {'connected' if conn else 'NOT connected'}"
+                if not conn:
+                    comps = list(nx.connected_components(G))
+                    answer += f" — {len(comps)} components: {comps}"
+                steps.append(f"✅ {answer}")
+
+            # Eulerian
+            elif 'euler' in problem_lower:
+                is_e = nx.is_eulerian(G)
+                is_semi = nx.is_semieulerian(G)
+                answer = (f"{'Eulerian circuit exists' if is_e else 'Semi-Eulerian (trail)' if is_semi else 'Not Eulerian'}")
+                steps.append(f"✅ {answer}")
+
+            # Degree
+            elif 'degree' in problem_lower:
+                degs = dict(G.degree())
+                answer = f"Degrees: {degs}"
+                steps.append(f"✅ {answer}")
+
+            # Centrality
+            elif 'centrality' in problem_lower:
+                bc = nx.betweenness_centrality(G)
+                answer = f"Betweenness centrality: { {k: round(v,3) for k,v in bc.items()} }"
+                steps.append(f"✅ {answer}")
+
+            # Default: summary
+            else:
+                conn = nx.is_connected(G)
+                degs = dict(G.degree())
+                avg_deg = sum(degs.values()) / len(degs) if degs else 0
+                answer = (f"Nodes: {list(G.nodes())}  |  Edges: {list(G.edges())}  |  "
+                          f"Connected: {conn}  |  Avg degree: {avg_deg:.2f}")
+                steps.append(f"✅ {answer}")
+
+            return Solution(
+                answer=answer, steps=steps,
+                explanation="Graph analysis using NetworkX (open source).",
+                problem_type="graph", difficulty="medium", confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not analyze graph: {str(e)}",
+                steps=["**Examples:**",
+                       "- `is graph [(0,1),(1,2),(2,0)] connected`",
+                       "- `shortest path from A to D in [(A,B),(B,C),(C,D),(A,D)]`",
+                       "- `minimum spanning tree [(0,1),(0,2),(1,2),(1,3)]`",
+                       "- `degree of [(A,B),(B,C),(C,A),(A,D)]`"],
+                explanation=str(e),
+                problem_type="graph", difficulty="medium", confidence=0.0,
+            )
+
+    def _solve_stats_test(self, problem: str) -> Solution:
+        """Hypothesis tests and confidence intervals using scipy.stats."""
+        import numpy as np
+        from scipy import stats
+        steps = []
+        problem_lower = problem.lower()
+
+        try:
+            # Extract data arrays
+            arrays = re.findall(r'\[([^\]]+)\]', problem)
+            data_sets = []
+            for arr in arrays:
+                try:
+                    data_sets.append([float(x) for x in arr.split(',')])
+                except ValueError:
+                    pass
+
+            # t-test
+            if 't-test' in problem_lower or 'ttest' in problem_lower:
+                if len(data_sets) >= 2:
+                    stat, pval = stats.ttest_ind(data_sets[0], data_sets[1])
+                    answer = f"t = {stat:.4f},  p-value = {pval:.4f}"
+                    steps.append(f"📝 **Independent samples t-test**")
+                    steps.append(f"   Group 1: n={len(data_sets[0])}, mean={np.mean(data_sets[0]):.4f}")
+                    steps.append(f"   Group 2: n={len(data_sets[1])}, mean={np.mean(data_sets[1]):.4f}")
+                elif len(data_sets) == 1:
+                    mu_m = re.search(r'mu\s*=\s*([\d.]+)', problem, re.I)
+                    mu = float(mu_m.group(1)) if mu_m else 0
+                    stat, pval = stats.ttest_1samp(data_sets[0], mu)
+                    answer = f"t = {stat:.4f},  p-value = {pval:.4f}"
+                    steps.append(f"📝 **One-sample t-test** (μ₀ = {mu})")
+                else:
+                    raise ValueError("Provide data as [1,2,3,...] in the problem.")
+                steps.append(f"✅ {answer}")
+                steps.append(f"   {'Reject H₀ (p < 0.05)' if pval < 0.05 else 'Fail to reject H₀ (p ≥ 0.05)'}")
+
+            # Chi-square test
+            elif 'chi' in problem_lower:
+                if len(data_sets) < 2:
+                    raise ValueError("Provide observed and expected as two arrays.")
+                if len(data_sets) == 2:
+                    chi2, pval = stats.chisquare(data_sets[0], data_sets[1])
+                else:
+                    chi2, pval, dof, expected = stats.chi2_contingency(
+                        [data_sets[i] for i in range(len(data_sets))])
+                answer = f"χ² = {chi2:.4f},  p-value = {pval:.4f}"
+                steps.append(f"📝 **Chi-square test**")
+                steps.append(f"✅ {answer}")
+                steps.append(f"   {'Reject H₀ (p < 0.05)' if pval < 0.05 else 'Fail to reject H₀ (p ≥ 0.05)'}")
+
+            # Correlation
+            elif 'correlation' in problem_lower or 'pearson' in problem_lower:
+                if len(data_sets) < 2:
+                    raise ValueError("Provide two data arrays.")
+                r, pval = stats.pearsonr(data_sets[0], data_sets[1])
+                answer = f"Pearson r = {r:.4f},  p-value = {pval:.4f}"
+                steps.append(f"✅ {answer}")
+
+            # Confidence interval
+            elif 'confidence' in problem_lower:
+                if not data_sets:
+                    raise ValueError("Provide data as [1,2,3,...]")
+                data = data_sets[0]
+                ci_m = re.search(r'(\d+)\s*%', problem)
+                level = float(ci_m.group(1)) / 100 if ci_m else 0.95
+                ci = stats.t.interval(level, df=len(data)-1,
+                                      loc=np.mean(data), scale=stats.sem(data))
+                answer = f"{level*100:.0f}% CI: ({ci[0]:.4f}, {ci[1]:.4f})"
+                steps.append(f"📝 **{level*100:.0f}% Confidence Interval** for mean")
+                steps.append(f"   n={len(data)}, mean={np.mean(data):.4f}, SE={stats.sem(data):.4f}")
+                steps.append(f"✅ {answer}")
+
+            else:
+                raise ValueError("Specify test type: t-test, chi-square, correlation, or confidence interval.")
+
+            return Solution(
+                answer=answer, steps=steps,
+                explanation="Statistical test computed using scipy.stats (open source).",
+                problem_type="stats_test", difficulty="hard", confidence=1.0,
+            )
+
+        except Exception as e:
+            return Solution(
+                answer=f"Could not compute: {str(e)}",
+                steps=["**Examples:**",
+                       "- `t-test [2.1,2.5,2.3] [3.1,3.4,3.0]`",
+                       "- `chi-square [10,20,30] [15,15,30]`",
+                       "- `pearson correlation [1,2,3] [2,4,5]`",
+                       "- `95% confidence interval [4.2,4.5,4.1,4.8,4.3]`"],
+                explanation=str(e),
+                problem_type="stats_test", difficulty="hard", confidence=0.0,
             )
 
     def _solve_integral(self, problem: str) -> Solution:
@@ -813,11 +1519,6 @@ class StudentSolver:
                 difficulty="unknown",
                 confidence=0.0,
             )
-
-    # ------------------------------------------------------------------
-    # Definite Integrals
-    # ------------------------------------------------------------------
-
     def _solve_definite_integral(self, problem: str) -> Solution:
         """Compute a definite integral with bounds."""
         try:
