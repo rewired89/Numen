@@ -62,6 +62,33 @@ class StudentSolver:
         """Normalize math notation so the parser handles it correctly."""
         # Unicode superscripts: x² → x**2
         problem = _replace_superscripts(problem)
+        # Partial derivative symbol ∂ — convert to plain-English form the solver understands
+        # ∂(expr)/∂x  or  ∂expr/∂x  →  derivative of expr with respect to x
+        problem = re.sub(
+            r'∂\s*\(([^)]+)\)\s*/\s*∂\s*([a-zA-Z])',
+            lambda m: f'derivative of {m.group(1)} with respect to {m.group(2)}',
+            problem,
+        )
+        problem = re.sub(
+            r'∂\s*([\w][\w\s^*/+-]*?)\s*/\s*∂\s*([a-zA-Z])',
+            lambda m: f'derivative of {m.group(1).strip()} with respect to {m.group(2)}',
+            problem,
+        )
+        # ∂/∂x [of] expr  →  derivative with respect to x of expr
+        problem = re.sub(
+            r'∂\s*/\s*∂\s*([a-zA-Z])\s+(?:of\s+)?',
+            lambda m: f'derivative with respect to {m.group(1)} of ',
+            problem,
+        )
+        # Any remaining bare ∂ → 'd' so it doesn't crash the parser
+        problem = problem.replace('∂', 'd')
+        # d(expr)/dx  →  derivative of expr with respect to x
+        problem = re.sub(
+            r'\bd\s*\(([^)]+)\)\s*/\s*d([a-zA-Z])\b',
+            lambda m: f'derivative of {m.group(1)} with respect to {m.group(2)}',
+            problem, flags=re.IGNORECASE,
+        )
+        # Unicode integral symbol ∫ already handled downstream, leave it
         # Unicode arrows / operators
         problem = problem.replace('→', '->').replace('—>', '->')
         problem = problem.replace('≤', '<=').replace('≥', '>=')
@@ -172,9 +199,10 @@ class StudentSolver:
         if re.search(r"second\s+derivative|d[²2]\s*/\s*dx[²2]|d\^2\s*/\s*dx\^2", p):
             return 'second_derivative'
 
-        # Derivatives / differentiation
+        # Derivatives / differentiation (∂ checked on original problem before _fix_notation)
         if ('derivative' in p or 'd/dx' in p or 'd/dy' in p or 'd/dz' in p
                 or 'differentiate' in p or 'partial' in p
+                or '∂' in problem  # raw unicode partial symbol
                 or re.search(r'\bd\s*\(', p)):
             return 'derivative'
 
