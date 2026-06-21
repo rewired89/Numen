@@ -67,7 +67,7 @@ body{background:var(--black);color:var(--t);font-family:'Inter',sans-serif;overf
 
 /* ── NAV ── */
 nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:18px 48px;background:rgba(10,10,10,.9);backdrop-filter:blur(16px);border-bottom:1px solid var(--b);animation:slideDown .5s ease both}
-.logo{font-size:20px;font-weight:900;letter-spacing:-1px;color:#fff}.logo span{color:var(--red)}
+.logo{font-size:20px;font-weight:900;letter-spacing:-1px;color:var(--red)}
 .nav-tag{font-size:12px;color:var(--m);font-weight:500;letter-spacing:.05em}
 
 /* ── HERO ── */
@@ -186,7 +186,7 @@ textarea:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.1)}
 
 <!-- Nav -->
 <nav>
-  <div class="logo">NU<span>MEN</span></div>
+  <div class="logo">NUMEN</div>
   <div class="nav-tag">Mathematical Reasoning Engine</div>
 </nav>
 

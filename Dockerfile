@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# System deps: tesseract for OCR, build tools
+# System deps for tesseract OCR + opencv
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     libglib2.0-0 \
@@ -10,14 +10,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    libgl1 \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first (cached layer)
+# Python deps
 COPY requirements.txt .
 RUN pip install --no-cache-dir \
     sympy numpy scipy matplotlib \
-    pillow pytesseract \
+    pillow pytesseract opencv-python-headless \
     fastapi uvicorn pydantic \
     networkx python-multipart
 
