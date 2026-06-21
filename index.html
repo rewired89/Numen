@@ -45,9 +45,10 @@
       animation: slideDown .6s ease both;
     }
     .nav-logo {
+      color: var(--red) !important;
       font-size: 22px; font-weight: 900; letter-spacing: -1px; color: #fff;
     }
-    .nav-logo span { color: var(--red); }
+    .nav-logo span { color: var(--red); display: none; }
     .nav-links { display: flex; gap: 36px; list-style: none; }
     .nav-links a {
       color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
@@ -294,8 +295,7 @@
       border-top: 1px solid var(--border);
       display: flex; align-items: center; justify-content: space-between;
     }
-    .footer-logo { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -1px; }
-    .footer-logo span { color: var(--red); }
+    .footer-logo { font-size: 18px; font-weight: 900; color: var(--red); letter-spacing: -1px; }
     .footer-note { font-size: 13px; color: var(--muted); }
 
     /* ─── KEYFRAMES ─────────────────────────────── */
@@ -343,7 +343,7 @@
 
 <!-- NAV -->
 <nav>
-  <div class="nav-logo">NU<span>MEN</span></div>
+  <div class="nav-logo">NUMEN</div>
   <ul class="nav-links">
     <li><a href="#features">Features</a></li>
     <li><a href="#how">How it works</a></li>
@@ -362,7 +362,7 @@
       reads your handwriting, and verifies every answer — 100% accuracy, guaranteed.
     </p>
     <div class="hero-actions">
-      <a href="https://numen-production-ffb9.up.railway.app" class="btn-primary" target="_blank">Try it now →</a>
+      <a href="#app" class="btn-primary">Try it now →</a>
       <a href="#how" class="btn-secondary">See how it works</a>
     </div>
   </div>
@@ -543,7 +543,7 @@
 
 <!-- FOOTER -->
 <footer>
-  <div class="footer-logo">NU<span>MEN</span></div>
+  <div class="footer-logo">NUMEN</div>
   <div class="footer-note">Mathematical Reasoning Engine &mdash; Proprietary &middot; Nyx Cybersecurity</div>
 </footer>
 
