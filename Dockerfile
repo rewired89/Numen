@@ -17,16 +17,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir \
     sympy numpy scipy matplotlib \
-    gradio pillow pytesseract \
+    pillow pytesseract \
     fastapi uvicorn pydantic \
-    networkx
+    networkx python-multipart
 
 # Copy project and install
 COPY . .
 RUN pip install --no-cache-dir -e .
 
-# Gradio port
-EXPOSE 7860
+EXPOSE 8000
 
-# Single command to start Numen
-CMD ["numen", "up", "--port", "7860", "--host", "0.0.0.0"]
+CMD ["python", "web_app.py"]
