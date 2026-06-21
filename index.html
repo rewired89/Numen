@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Numen — Mathematical Reasoning Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --red: #dc2626;
+      --red-dark: #b91c1c;
+      --black: #0a0a0a;
+      --surface: #111111;
+      --border: #1f1f1f;
+      --text: #e8e8e8;
+      --muted: #666;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--black);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* ─── SCROLLBAR ─────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: var(--black); }
+    ::-webkit-scrollbar-thumb { background: var(--red); border-radius: 2px; }
+
+    /* ─── NAV ───────────────────────────────────── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 60px;
+      background: rgba(10,10,10,.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      animation: slideDown .6s ease both;
+    }
+    .nav-logo {
+      font-size: 22px; font-weight: 900; letter-spacing: -1px; color: #fff;
+    }
+    .nav-logo span { color: var(--red); }
+    .nav-links { display: flex; gap: 36px; list-style: none; }
+    .nav-links a {
+      color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: #fff; }
+    .nav-cta {
+      background: var(--red); color: #fff; border: none; padding: 10px 24px;
+      border-radius: 6px; font-size: 14px; font-weight: 700; cursor: pointer;
+      transition: background .2s, transform .1s;
+      text-decoration: none;
+    }
+    .nav-cta:hover { background: var(--red-dark); transform: translateY(-1px); }
+
+    /* ─── HERO ──────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex; align-items: center;
+      padding: 120px 60px 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; top: -200px; right: -200px;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(220,38,38,.15) 0%, transparent 70%);
+      pointer-events: none;
+      animation: pulse 4s ease-in-out infinite;
+    }
+    .hero-content { max-width: 680px; position: relative; z-index: 1; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(220,38,38,.1); border: 1px solid rgba(220,38,38,.3);
+      color: var(--red); padding: 6px 14px; border-radius: 100px;
+      font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      margin-bottom: 28px;
+      animation: fadeUp .6s .1s ease both;
+    }
+    .hero-badge::before { content: ''; width: 6px; height: 6px; background: var(--red); border-radius: 50%; animation: blink 1.2s infinite; }
+    .hero-title {
+      font-size: clamp(56px, 8vw, 100px);
+      font-weight: 900;
+      line-height: .95;
+      letter-spacing: -3px;
+      color: #fff;
+      margin-bottom: 24px;
+      animation: fadeUp .6s .2s ease both;
+    }
+    .hero-title span { color: var(--red); }
+    .hero-sub {
+      font-size: 18px; color: var(--muted); line-height: 1.7;
+      max-width: 520px; margin-bottom: 40px;
+      animation: fadeUp .6s .3s ease both;
+    }
+    .hero-actions {
+      display: flex; gap: 16px; flex-wrap: wrap;
+      animation: fadeUp .6s .4s ease both;
+    }
+    .btn-primary {
+      background: var(--red); color: #fff; border: none;
+      padding: 14px 32px; border-radius: 6px; font-size: 15px; font-weight: 700;
+      cursor: pointer; transition: background .2s, transform .15s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-primary:hover { background: var(--red-dark); transform: translateY(-2px); }
+    .btn-secondary {
+      background: transparent; color: #fff;
+      border: 1px solid var(--border); padding: 14px 32px; border-radius: 6px;
+      font-size: 15px; font-weight: 600; cursor: pointer;
+      transition: border-color .2s, transform .15s;
+      text-decoration: none; display: inline-block;
+    }
+    .btn-secondary:hover { border-color: var(--red); transform: translateY(-2px); }
+
+    /* hero visual */
+    .hero-visual {
+      position: absolute; right: 60px; top: 50%; transform: translateY(-50%);
+      width: 420px; height: 420px;
+      animation: fadeUp .8s .5s ease both;
+    }
+    .hero-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1px solid rgba(220,38,38,.2);
+      animation: spin 20s linear infinite;
+    }
+    .hero-ring:nth-child(2) { inset: 30px; border-color: rgba(220,38,38,.15); animation-duration: 15s; animation-direction: reverse; }
+    .hero-ring:nth-child(3) { inset: 60px; border-color: rgba(220,38,38,.1); animation-duration: 25s; }
+    .hero-center {
+      position: absolute; inset: 90px;
+      background: radial-gradient(circle, rgba(220,38,38,.25), rgba(220,38,38,.05));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .hero-center-text {
+      font-size: 48px; font-weight: 900; color: rgba(255,255,255,.08);
+      letter-spacing: -2px;
+    }
+    .hero-dot {
+      position: absolute; width: 8px; height: 8px; background: var(--red);
+      border-radius: 50%; top: 50%; left: 0;
+      transform-origin: 210px 0;
+      animation: orbit 4s linear infinite;
+    }
+    .hero-dot:nth-child(5) { animation-delay: -2s; background: #fff; width: 5px; height: 5px; }
+
+    /* ─── STATS ─────────────────────────────────── */
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat-item {
+      padding: 48px 60px;
+      border-right: 1px solid var(--border);
+      opacity: 0;
+      transition: opacity .6s, transform .6s;
+      transform: translateY(20px);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-item.visible { opacity: 1; transform: translateY(0); }
+    .stat-number {
+      font-size: 52px; font-weight: 900; color: #fff; letter-spacing: -2px;
+      line-height: 1; margin-bottom: 8px;
+    }
+    .stat-number span { color: var(--red); }
+    .stat-label { font-size: 13px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; }
+
+    /* ─── SECTION BASE ───────────────────────────── */
+    section { padding: 100px 60px; }
+    .section-tag {
+      font-size: 11px; font-weight: 700; color: var(--red);
+      text-transform: uppercase; letter-spacing: .15em;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: clamp(36px, 4vw, 56px); font-weight: 900;
+      color: #fff; letter-spacing: -2px; line-height: 1.05;
+      margin-bottom: 16px;
+    }
+    .section-title span { color: var(--red); }
+    .section-sub { font-size: 16px; color: var(--muted); max-width: 480px; line-height: 1.7; }
+
+    .reveal {
+      opacity: 0; transform: translateY(32px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ─── FEATURES ──────────────────────────────── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 1px; background: var(--border);
+      margin-top: 64px; border: 1px solid var(--border);
+    }
+    .feature-card {
+      background: var(--black); padding: 48px 40px;
+      transition: background .3s;
+      opacity: 0; transform: translateY(24px);
+      transition: opacity .5s ease, transform .5s ease, background .3s;
+    }
+    .feature-card.visible { opacity: 1; transform: translateY(0); }
+    .feature-card:hover { background: var(--surface); }
+    .feature-icon {
+      width: 48px; height: 48px;
+      border: 1px solid rgba(220,38,38,.3);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 24px;
+      background: rgba(220,38,38,.05);
+    }
+    .feature-name {
+      font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 12px;
+    }
+    .feature-desc { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+    /* ─── HOW IT WORKS ──────────────────────────── */
+    .steps { margin-top: 64px; display: flex; flex-direction: column; gap: 0; }
+    .step {
+      display: flex; gap: 48px; align-items: flex-start;
+      padding: 40px 0; border-bottom: 1px solid var(--border);
+      opacity: 0; transform: translateX(-24px);
+      transition: opacity .6s ease, transform .6s ease;
+    }
+    .step.visible { opacity: 1; transform: translateX(0); }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      font-size: 72px; font-weight: 900; color: var(--border);
+      line-height: 1; min-width: 80px; letter-spacing: -3px;
+      transition: color .3s;
+    }
+    .step:hover .step-num { color: var(--red); }
+    .step-content h3 { font-size: 22px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+    .step-content p { font-size: 15px; color: var(--muted); line-height: 1.7; max-width: 560px; }
+
+    /* ─── DOMAINS ───────────────────────────────── */
+    .domains-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 24px; margin-top: 64px;
+    }
+    .domain-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 40px;
+      transition: border-color .3s, transform .3s;
+      opacity: 0; transform: translateY(24px);
+      transition: opacity .6s ease, transform .6s ease, border-color .3s;
+    }
+    .domain-card.visible { opacity: 1; transform: translateY(0); }
+    .domain-card:hover { border-color: var(--red); transform: translateY(-4px); }
+    .domain-label {
+      font-size: 11px; font-weight: 700; color: var(--red);
+      text-transform: uppercase; letter-spacing: .1em; margin-bottom: 16px;
+    }
+    .domain-title { font-size: 26px; font-weight: 800; color: #fff; margin-bottom: 12px; }
+    .domain-desc { font-size: 14px; color: var(--muted); line-height: 1.7; margin-bottom: 24px; }
+    .domain-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag {
+      background: rgba(220,38,38,.08); border: 1px solid rgba(220,38,38,.2);
+      color: var(--red); padding: 4px 12px; border-radius: 100px;
+      font-size: 12px; font-weight: 600;
+    }
+
+    /* ─── CTA ───────────────────────────────────── */
+    .cta-section {
+      text-align: center;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      position: relative; overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 600px; height: 300px;
+      background: radial-gradient(ellipse, rgba(220,38,38,.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-section .section-title { margin-bottom: 24px; }
+    .cta-section .section-sub { margin: 0 auto 40px; text-align: center; }
+    .cta-actions { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+
+    /* ─── FOOTER ────────────────────────────────── */
+    footer {
+      padding: 40px 60px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer-logo { font-size: 18px; font-weight: 900; color: #fff; letter-spacing: -1px; }
+    .footer-logo span { color: var(--red); }
+    .footer-note { font-size: 13px; color: var(--muted); }
+
+    /* ─── KEYFRAMES ─────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes orbit {
+      from { transform: rotate(0deg) translateX(190px); }
+      to   { transform: rotate(360deg) translateX(190px); }
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: .6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .3; }
+    }
+
+    /* ─── MOBILE ────────────────────────────────── */
+    @media (max-width: 900px) {
+      nav { padding: 16px 24px; }
+      .nav-links { display: none; }
+      .hero { padding: 100px 24px 60px; }
+      .hero-visual { display: none; }
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .stat-item { padding: 32px 24px; border-right: none; border-bottom: 1px solid var(--border); }
+      section { padding: 64px 24px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .domains-grid { grid-template-columns: 1fr; }
+      footer { flex-direction: column; gap: 16px; text-align: center; padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">NU<span>MEN</span></div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#domains">Domains</a></li>
+  </ul>
+  <a href="https://github.com/rewired89/Numen" class="nav-cta">View on GitHub</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">Mathematical Reasoning Engine</div>
+    <h1 class="hero-title">SOLVE<br/>ANY<br/><span>MATH.</span></h1>
+    <p class="hero-sub">
+      Symbolic computation meets zero hallucination. Numen solves equations,
+      reads your handwriting, and verifies every answer — 100% accuracy, guaranteed.
+    </p>
+    <div class="hero-actions">
+      <a href="https://github.com/rewired89/Numen" class="btn-primary">Get Started</a>
+      <a href="#how" class="btn-secondary">See how it works</a>
+    </div>
+  </div>
+
+  <div class="hero-visual">
+    <div class="hero-ring"></div>
+    <div class="hero-ring"></div>
+    <div class="hero-ring"></div>
+    <div class="hero-center">
+      <div class="hero-center-text">N</div>
+    </div>
+    <div class="hero-dot"></div>
+    <div class="hero-dot"></div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat-item">
+    <div class="stat-number"><span class="counter" data-target="100">0</span><span>%</span></div>
+    <div class="stat-label">Symbolic Accuracy</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number"><span class="counter" data-target="0">0</span><span>%</span></div>
+    <div class="stat-label">Hallucination Rate</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number"><span class="counter" data-target="12">0</span><span>+</span></div>
+    <div class="stat-label">Math Domains</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-number"><span class="counter" data-target="85">0</span><span>%+</span></div>
+    <div class="stat-label">MATH Benchmark</div>
+  </div>
+</div>
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="reveal">
+    <div class="section-tag">What Numen does</div>
+    <h2 class="section-title">Built different.<br/><span>Not an AI guesser.</span></h2>
+    <p class="section-sub">Every answer is verified with symbolic mathematics. No hallucinations. No approximations.</p>
+  </div>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">✏️</div>
+      <div class="feature-name">Type any problem</div>
+      <div class="feature-desc">Algebra, calculus, ODEs, matrices, stats — type it in plain language and get a full step-by-step solution.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">📷</div>
+      <div class="feature-name">Photo to solution</div>
+      <div class="feature-desc">Snap a photo of your handwritten homework. Numen reads it with OCR, lets you correct any symbol, then solves it.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">✅</div>
+      <div class="feature-name">Symbolic verification</div>
+      <div class="feature-desc">SymPy-powered engine checks every result mathematically before showing it to you. 100% verified, always.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🔐</div>
+      <div class="feature-name">Cryptanalysis</div>
+      <div class="feature-desc">Structural weakness detection in encryption schemes, novel attack vector prediction using number theory.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🧠</div>
+      <div class="feature-name">Neural dynamics</div>
+      <div class="feature-desc">Cognitive state prediction using dynamical systems. Brain signal pattern optimization using differential equations.</div>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <div class="feature-name">Cross-domain</div>
+      <div class="feature-desc">Topology applied to cryptography. Differential equations applied to neural modeling. Fields that don't usually talk — now they do.</div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how" style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="reveal">
+    <div class="section-tag">Process</div>
+    <h2 class="section-title">How <span>Numen</span> works</h2>
+    <p class="section-sub">Multi-path exploration, symbolic verification, zero tolerance for unverified outputs.</p>
+  </div>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">01</div>
+      <div class="step-content">
+        <h3>Input your problem</h3>
+        <p>Type the equation directly or upload a photo of your handwritten problem. Numen's OCR extracts the math — and you can edit any symbol it missed.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">02</div>
+      <div class="step-content">
+        <h3>MCTS exploration</h3>
+        <p>Monte Carlo Tree Search explores multiple solution paths simultaneously, selecting the most promising approach for your specific problem type.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">03</div>
+      <div class="step-content">
+        <h3>Symbolic verification</h3>
+        <p>Every candidate solution is verified mathematically using SymPy before being accepted. If it can't be proven, it's rejected — no guessing.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">04</div>
+      <div class="step-content">
+        <h3>Solution + explanation</h3>
+        <p>You get the verified answer, the full step-by-step reasoning chain, confidence score, and a plain-language explanation.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOMAINS -->
+<section id="domains">
+  <div class="reveal">
+    <div class="section-tag">Applications</div>
+    <h2 class="section-title">Two primary<br/><span>domains.</span></h2>
+    <p class="section-sub">Numen bridges mathematics across fields that have never talked to each other before.</p>
+  </div>
+
+  <div class="domains-grid">
+    <div class="domain-card">
+      <div class="domain-label">Nyx Cybersecurity</div>
+      <div class="domain-title">Cryptanalysis</div>
+      <div class="domain-desc">Detect structural weaknesses in encryption schemes. Predict novel attack vectors using number theory and topology. Assess protocol vulnerabilities before they're exploited.</div>
+      <div class="domain-tags">
+        <span class="tag">RSA Analysis</span>
+        <span class="tag">Number Theory</span>
+        <span class="tag">Topology</span>
+        <span class="tag">Attack Vectors</span>
+      </div>
+    </div>
+    <div class="domain-card">
+      <div class="domain-label">NeuroCompass</div>
+      <div class="domain-title">Neural Dynamics</div>
+      <div class="domain-desc">Cognitive state prediction using dynamical systems. Brain signal pattern optimization. Statistical mechanics applied to neural networks and EEG analysis.</div>
+      <div class="domain-tags">
+        <span class="tag">FitzHugh-Nagumo</span>
+        <span class="tag">Wilson-Cowan</span>
+        <span class="tag">EEG Analysis</span>
+        <span class="tag">ODEs</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="cta-section reveal">
+  <div class="section-tag">Open Source</div>
+  <h2 class="section-title">Ready to<br/><span>start?</span></h2>
+  <p class="section-sub">Clone the repo, install dependencies, and you're solving in under a minute.</p>
+  <div class="cta-actions">
+    <a href="https://github.com/rewired89/Numen" class="btn-primary">View on GitHub</a>
+    <a href="https://github.com/rewired89/Numen#installation" class="btn-secondary">Installation guide</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">NU<span>MEN</span></div>
+  <div class="footer-note">Mathematical Reasoning Engine &mdash; Proprietary &middot; Nyx Cybersecurity</div>
+</footer>
+
+<script>
+  // Intersection Observer for reveal animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => {
+          entry.target.classList.add('visible');
+        }, entry.target.dataset.delay || 0);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal, .stat-item, .feature-card, .step, .domain-card').forEach((el, i) => {
+    el.dataset.delay = (i % 4) * 80;
+    observer.observe(el);
+  });
+
+  // Animated counters
+  const counterObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const el = entry.target;
+        const target = parseInt(el.dataset.target);
+        const duration = 1400;
+        const start = performance.now();
+        const animate = (now) => {
+          const elapsed = now - start;
+          const progress = Math.min(elapsed / duration, 1);
+          const ease = 1 - Math.pow(1 - progress, 3);
+          el.textContent = Math.round(ease * target);
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+        counterObserver.unobserve(el);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  document.querySelectorAll('.counter').forEach(el => counterObserver.observe(el));
+</script>
+
+</body>
+</html>
